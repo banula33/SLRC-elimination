@@ -4,6 +4,14 @@
 #include "ToFArray.h"
 #include "SensorManager.h"
 #include "StateMachine.h"
+#include "RawGyro.h"
+
+// ─────────────────────────────────────────────────────────────
+//  ★  TESTING MODE FLAG
+//     Set to true  → run 10-second sensor diagnostic on startup,
+//     Set to false → skip directly to normal state-machine operation.
+// ─────────────────────────────────────────────────────────────
+static constexpr bool TESTING_MODE = true;
 
 // ─────────────────────────────────────────────────────────────
 //  Hardware instances
@@ -26,6 +34,90 @@ SensorManager sensorMgr(robot, tofArray);
 StateMachine  stateMachine(sensorMgr, robot);
 
 // ─────────────────────────────────────────────────────────────
+//  Sensor diagnostic routine (runs only when TESTING_MODE = true)
+//  Collects one reading per sensor every 500 ms for 10 seconds,
+//  then prints them all to Serial.
+// ─────────────────────────────────────────────────────────────
+static void runSensorTests()
+{
+    Serial.println(F("\n========================================"));
+    Serial.println(F("  SENSOR TEST MODE — 10 seconds"));
+    Serial.println(F("========================================"));
+
+    const unsigned long TEST_DURATION_MS  = 10000UL;
+    const unsigned long SAMPLE_INTERVAL_MS = 500UL;
+
+    unsigned long testStart  = millis();
+    unsigned long lastSample = testStart - SAMPLE_INTERVAL_MS; // take first sample immediately
+    int sampleNum = 0;
+
+    while ((millis() - testStart) < TEST_DURATION_MS)
+    {
+        unsigned long now = millis();
+        if ((now - lastSample) >= SAMPLE_INTERVAL_MS)
+        {
+            lastSample = now;
+            sampleNum++;
+
+            Serial.print(F("\n--- Sample #"));
+            Serial.print(sampleNum);
+            Serial.print(F("  (t="));
+            Serial.print((now - testStart) / 1000.0f, 1);
+            Serial.println(F(" s) ---"));
+
+            // ── ToF sensors ────────────────────────────────
+            Serial.print(F("  ToF Left  : "));
+            int tl = tofArray.readLeftMm();
+            if (tl < 0) Serial.println(F("ERR"));
+            else { Serial.print(tl); Serial.println(F(" mm")); }
+
+            Serial.print(F("  ToF Front : "));
+            int tf = tofArray.readFrontMm();
+            if (tf < 0) Serial.println(F("ERR"));
+            else { Serial.print(tf); Serial.println(F(" mm")); }
+
+            Serial.print(F("  ToF Right : "));
+            int tr = tofArray.readRightMm();
+            if (tr < 0) Serial.println(F("ERR"));
+            else { Serial.print(tr); Serial.println(F(" mm")); }
+
+            // ── Encoders ───────────────────────────────────
+            robot.pollEncoders();
+            Serial.print(F("  Enc Left  : "));
+            Serial.print(robot.getLeftDistanceCm(), 2);
+            Serial.println(F(" cm"));
+
+            Serial.print(F("  Enc Right : "));
+            Serial.print(robot.getRightDistanceCm(), 2);
+            Serial.println(F(" cm"));
+
+            // ── Gyro ───────────────────────────────────────
+            RawGyroReadings g;
+            if (updateRawGyro(g))
+            {
+                Serial.print(F("  Gyro  aX="));  Serial.print(g.accelX);
+                Serial.print(F("  aY="));        Serial.print(g.accelY);
+                Serial.print(F("  aZ="));        Serial.print(g.accelZ);
+                Serial.print(F("  gX="));        Serial.print(g.gyroX);
+                Serial.print(F("  gY="));        Serial.print(g.gyroY);
+                Serial.print(F("  gZ="));        Serial.print(g.gyroZ);
+                Serial.print(F("  temp="));
+                Serial.print(rawGyroTemperatureC(g.temperature), 1);
+                Serial.println(F(" C"));
+            }
+            else
+            {
+                Serial.println(F("  Gyro  : ERR (not ready)"));
+            }
+        }
+    }
+
+    Serial.println(F("\n========================================"));
+    Serial.println(F("  SENSOR TEST COMPLETE — starting robot"));
+    Serial.println(F("========================================\n"));
+}
+
+// ─────────────────────────────────────────────────────────────
 //  setup()
 // ─────────────────────────────────────────────────────────────
 void setup()
@@ -38,8 +130,13 @@ void setup()
     // Encoders: rightA=2, rightB=3, leftA=18, leftB=19
     robot.configureEncoders(2, 3, 18, 19);
 
-    // Initialise all sensors (gyro + ToF) — they start disabled
+    // Initialise sensors
     sensorMgr.begin();
+
+    if (TESTING_MODE)
+    {
+        runSensorTests();
+    }
 
     // Start the state machine at Phase 1 (BOX_FINDING)
     stateMachine.begin();
