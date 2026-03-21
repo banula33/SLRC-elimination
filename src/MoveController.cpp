@@ -1,18 +1,25 @@
 #include "MoveController.h"
 
 // ─────────────────────────────────────────────────────────────
-//  ISR support
-//  attachInterrupt() requires free functions; we store a pointer
-//  to the single MoveController instance so the ISRs can
-//  increment its pulse counters.
+//  ISR support — store pin numbers in plain statics so the ISRs
+//  require no pointer dereference and no function call overhead.
+//
+//  Direction rule for CHANGE mode (fires on both A edges):
+//    if (A_state == B_state) → forward (+1)
+//    else                    → backward (−1)
+//  This is the standard quadrature decoder formula.
 // ─────────────────────────────────────────────────────────────
 static MoveController *isrInstance = nullptr;
+static uint8_t _rightEncA_pin = 0;
+static uint8_t _rightEncB_pin = 0;
+static uint8_t _leftEncA_pin  = 0;
+static uint8_t _leftEncB_pin  = 0;
 
 static void isrRightA()
 {
-    if (!isrInstance) return;
-    // Read channel B to determine direction
-    if (digitalRead(isrInstance->rightEncBPin()))
+    bool a = digitalRead(_rightEncA_pin);
+    bool b = digitalRead(_rightEncB_pin);
+    if (a == b)
         isrInstance->rightPulse++;
     else
         isrInstance->rightPulse--;
@@ -20,8 +27,9 @@ static void isrRightA()
 
 static void isrLeftA()
 {
-    if (!isrInstance) return;
-    if (digitalRead(isrInstance->leftEncBPin()))
+    bool a = digitalRead(_leftEncA_pin);
+    bool b = digitalRead(_leftEncB_pin);
+    if (a == b)
         isrInstance->leftPulse++;
     else
         isrInstance->leftPulse--;
@@ -67,17 +75,24 @@ void MoveController::configureEncoders(int rightA, int rightB, int leftA, int le
     pinMode(leftEncA,  INPUT_PULLUP);
     pinMode(leftEncB,  INPUT_PULLUP);
 
-    // Store pointer for ISRs
+    // Populate static globals for ISR direct pin access
+    _rightEncA_pin = (uint8_t)rightA;
+    _rightEncB_pin = (uint8_t)rightB;
+    _leftEncA_pin  = (uint8_t)leftA;
+    _leftEncB_pin  = (uint8_t)leftB;
+
+    // Store instance pointer for ISRs
     isrInstance = this;
 
-    // Attach rising-edge interrupts on channel A of each encoder.
-    // On Mega: pins 2,3 → INT4,INT5; pins 18,19 → INT3,INT2
+    // Attach CHANGE interrupts on channel A — fires on both rising and falling
+    // edges, giving 2× counting resolution over RISING-only.
     attachInterrupt(digitalPinToInterrupt(rightEncA), isrRightA, CHANGE);
     attachInterrupt(digitalPinToInterrupt(leftEncA),  isrLeftA,  CHANGE);
 
     encoderConfigured = true;
-    Serial.println(F("Encoders: ISR attached"));
+    Serial.println(F("Encoders: ISR attached (CHANGE mode)"));
 }
+
 
 void MoveController::resetEncoders()
 {

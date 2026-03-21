@@ -24,14 +24,14 @@ static constexpr bool TESTING_MODE = true;
 //     When done, set RUN_ROBOT_TEST back to false.
 // ─────────────────────────────────────────────────────────────
 static constexpr bool       RUN_ROBOT_TEST = true;
-static constexpr RobotTest  ACTIVE_TEST    = RobotTest::MOVE_FORWARD_10CM;
+static constexpr RobotTest  ACTIVE_TEST    = RobotTest::ENCODER_VERIFY;
 
 // ─────────────────────────────────────────────────────────────
 //  Hardware instances
 // ─────────────────────────────────────────────────────────────
 // Motor driver: ENA=4, IN1=6, IN2=7, ENB=5, IN3=8, IN4=9
 // Wheel ø 6.5 cm, 20 PPR, 15 cm wheelbase, max 255, min 50
-MoveController robot(4, 7, 6, 5, 9, 8, 6.5, 20, 18.0, 255, 50);
+MoveController robot(4, 7, 6, 5, 9, 8, 6.5, 1630, 18.0, 255, 50);
 
 // ToF XSHUT pins
 const uint8_t TOF_LEFT_XSHUT_PIN  = 26;

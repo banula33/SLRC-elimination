@@ -55,6 +55,53 @@ static void test_turnRight90(MoveController &robot)
     Serial.println(F("[Test] Tip: adjust TURN_DURATION_MS to calibrate angle"));
 }
 
+// ── ENCODER_VERIFY ────────────────────────────────────────────
+// Motors stay off. Print tick count + distance every second for
+// 30 seconds. Rotate wheels by hand to verify ISR counting and
+// direction. Use ACTIVE_TEST = ENCODER_VERIFY in main.cpp.
+static void test_encoderVerify(MoveController &robot)
+{
+    Serial.println(F("[Test] ENCODER_VERIFY — rotate wheels by hand"));
+    Serial.println(F("[Test] 30 seconds, printing every 1 s"));
+    Serial.println(F("  s  |  L ticks  |   L cm   |  R ticks  |   R cm"));
+    Serial.println(F("  ---+-----------+----------+-----------+---------"));
+
+    robot.resetEncoders();
+
+    const unsigned long DURATION_MS = 30000UL;
+    unsigned long start     = millis();
+    unsigned long lastPrint = start - 1000UL; // print immediately at t=0
+    int sec = 0;
+
+    while ((millis() - start) < DURATION_MS)
+    {
+        if ((millis() - lastPrint) >= 1000UL)
+        {
+            lastPrint += 1000UL;
+            sec++;
+
+            noInterrupts();
+            long lt = robot.leftPulse;
+            long rt = robot.rightPulse;
+            interrupts();
+
+            Serial.print(F("  "));
+            Serial.print(sec);
+            Serial.print(F("  | "));
+            Serial.print(lt);
+            Serial.print(F("  | "));
+            Serial.print(robot.getLeftDistanceCm(), 2);
+            Serial.print(F(" cm | "));
+            Serial.print(rt);
+            Serial.print(F("  | "));
+            Serial.print(robot.getRightDistanceCm(), 2);
+            Serial.println(F(" cm"));
+        }
+    }
+
+    Serial.println(F("[Test] Done"));
+}
+
 // ─────────────────────────────────────────────────────────────
 //  Dispatcher
 // ─────────────────────────────────────────────────────────────
@@ -72,6 +119,10 @@ void runRobotTest(RobotTest test, MoveController &robot)
 
     case RobotTest::TURN_RIGHT_90DEG:
         test_turnRight90(robot);
+        break;
+
+    case RobotTest::ENCODER_VERIFY:
+        test_encoderVerify(robot);
         break;
 
     // ── Add new cases here as you add tests ──────────────
