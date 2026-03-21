@@ -42,11 +42,10 @@ void SensorManager::update()
 {
     unsigned long now = millis();
 
-    // --- Encoders (polled every cycle when enabled) ---
-    if (encodersEnabled_)
-    {
-        robot_.pollEncoders();
-    }
+    // --- Encoders ---
+    // ISR-driven: pulses are counted by hardware interrupts.
+    // encodersEnabled_ flag is used by the state machine to
+    // decide whether to read encoder values, but no polling needed.
 
     // --- Gyro (on interval) ---
     if (gyroEnabled_ && (now - lastGyroMs_) >= GYRO_INTERVAL_MS)

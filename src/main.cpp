@@ -31,7 +31,7 @@ static constexpr RobotTest  ACTIVE_TEST    = RobotTest::MOVE_FORWARD_10CM;
 // ─────────────────────────────────────────────────────────────
 // Motor driver: ENA=4, IN1=6, IN2=7, ENB=5, IN3=8, IN4=9
 // Wheel ø 6.5 cm, 20 PPR, 15 cm wheelbase, max 255, min 50
-MoveController robot(4, 7, 6, 5, 9, 8, 6.5, 250, 18.0, 255, 50);
+MoveController robot(4, 7, 6, 5, 9, 8, 6.5, 20, 18.0, 255, 50);
 
 // ToF XSHUT pins
 const uint8_t TOF_LEFT_XSHUT_PIN  = 26;
@@ -99,8 +99,7 @@ static void runSensorTests()
             if (tr < 0) Serial.println(F("ERR"));
             else { Serial.print(tr); Serial.println(F(" mm")); }
 
-            // ── Encoders ───────────────────────────────────
-            robot.pollEncoders();
+            // ── Encoders (ISR-driven — always up to date) ────
             Serial.print(F("  Enc Left  : "));
             Serial.print(robot.getLeftDistanceCm(), 2);
             Serial.println(F(" cm"));

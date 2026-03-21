@@ -6,7 +6,6 @@ class MoveController
 private:
   int ENA, IN1, IN2, ENB, IN3, IN4;
   int rightEncA, rightEncB, leftEncA, leftEncB;
-  int lastRightA, lastLeftA;
   bool encoderConfigured;
   float wheelDiameter;
   int encPPR;
@@ -14,22 +13,34 @@ private:
   int maxSpeed, minSpeed;
   float Kp, Ki, Kd;
 
-  void updateEncoderCounts();
-
 public:
+  // Pulse counters — updated by ISR, read from anywhere.
+  // Must be volatile because ISRs modify them asynchronously.
   volatile long rightPulse = 0;
-  volatile long leftPulse = 0;
+  volatile long leftPulse  = 0;
 
   MoveController(int ena, int in1, int in2, int enb, int in3, int in4,
                  float wheelDiameterCm, int encoderPPR, float wheelBaseCm,
                  int maxSpeed_ = 255, int minSpeed_ = 50);
 
   void begin();
+
+  // Attach hardware interrupts on encoder channel-A pins.
+  // Must be called once from setup() after begin().
+  // rightA / leftA must be interrupt-capable pins (Mega: 2,3,18,19,20,21).
   void configureEncoders(int rightA, int rightB, int leftA, int leftB);
-  void pollEncoders();
+
+  // Public accessors for ISR to read channel-B pins
+  int rightEncBPin() const { return rightEncB; }
+  int leftEncBPin()  const { return leftEncB; }
+
+  // Reset both pulse counters to zero.
+  void resetEncoders();
+
   float pulsesToDistanceCm(long pulses) const;
-  float getLeftDistanceCm() const;
+  float getLeftDistanceCm()  const;
   float getRightDistanceCm() const;
+
   void setPID(float Kp_, float Ki_, float Kd_);
   void moveForwardCm(int cm);
   void moveBackwardCm(int cm);
