@@ -50,6 +50,27 @@ private:
     void updateLineFollowing();
     void updateBoxInsertion();
 
+    // ── Box-finding sub-state machine ──────────────────────
+    enum class ScanStep : uint8_t
+    {
+        SCANNING,       // Driving forward, watching for a ToF drop
+        CONFIRMING,     // Drop seen — verifying it persists over 5 cm
+        POSITIONING,    // Confirmed — advancing the final 1 cm
+    };
+
+    void resetScanSequence();
+
+    ScanStep scanStep_       = ScanStep::SCANNING;
+    int      scanBaseTof_    = -1;  // Stable ToF reading before drop (mm)
+    float    scanDropEncCm_  = 0.0f; // Encoder position when drop first seen (cm)
+    float    scanEncStart_   = 0.0f; // Encoder position at phase entry (cm)
+
+    // Detection thresholds (tune as needed)
+    static constexpr int   SCAN_DROP_MM       = 70;   // 7 cm drop triggers detection
+    static constexpr float SCAN_CONFIRM_CM    = 5.0f; // hold drop for 5 cm to confirm
+    static constexpr float SCAN_EXTRA_CM      = 1.0f; // advance 1 cm after confirmation
+    static constexpr int   SCAN_FORWARD_PWM   = 100;  // drive speed while scanning
+
     // ── Box-lifting sub-state machine ──────────────────────
     enum class LiftStep : uint8_t
     {

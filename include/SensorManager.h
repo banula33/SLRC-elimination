@@ -60,8 +60,8 @@ private:
     bool irArrayEnabled_   = false;
 
     // Timing
-    static constexpr unsigned long GYRO_INTERVAL_MS = 5;
-    static constexpr unsigned long TOF_INTERVAL_MS  = 120;
+    static constexpr unsigned long GYRO_INTERVAL_MS = 15;
+    static constexpr unsigned long TOF_INTERVAL_MS  = 100;
     unsigned long lastGyroMs_ = 0;
     unsigned long lastTofMs_  = 0;
 

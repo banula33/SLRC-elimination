@@ -102,22 +102,109 @@ void StateMachine::configureSensors(RobotPhase phase)
 // ═════════════════════════════════════════════════════════════
 //  PHASE 1 — BOX FINDING
 // ═════════════════════════════════════════════════════════════
+void StateMachine::resetScanSequence()
+{
+    scanStep_      = ScanStep::SCANNING;
+    scanBaseTof_   = -1;
+    scanDropEncCm_ = 0.0f;
+    // snapshot current encoder position as the phase start reference
+    scanEncStart_  = (sensors_.getLeftEncoderCm() + sensors_.getRightEncoderCm()) * 0.5f;
+}
+
 void StateMachine::updateBoxFinding()
 {
     if (phaseJustEntered_)
     {
-        Serial.println(F("[BoxFind] Entered — scanning for boxes"));
-        // TODO: reset encoder baseline, start scanning pattern
+        Serial.println(F("[BoxFind] Entered — scanning forward for boxes"));
+        resetScanSequence();
+        // Start driving forward at scanning speed
+        robot_.setMotorSpeedsPWM(SCAN_FORWARD_PWM, SCAN_FORWARD_PWM);
     }
 
-    // ── Read available sensors ────────────────────────────
-    // int leftTof  = sensors_.getLeftTof();
-    // int frontTof = sensors_.getFrontTof();
-    // float leftCm = sensors_.getLeftEncoderCm();
+    // Average encoder distance travelled since phase entry
+    float encNow = (sensors_.getLeftEncoderCm() + sensors_.getRightEncoderCm()) * 0.5f;
+    float travelled = encNow - scanEncStart_;
 
-    // TODO: Implement box-detection logic
-    //       When a box is detected and robot is in position:
-    //       transitionTo(RobotPhase::BOX_LIFTING);
+    // Current left ToF (updated every 1 s by SensorManager)
+    int leftTof = sensors_.getLeftTof();
+
+    switch (scanStep_)
+    {
+    // ── SCANNING: drive forward and watch for a drop ──────
+    case ScanStep::SCANNING:
+    {
+        // Only update baseline when we have a valid, stable reading
+        if (leftTof > 0)
+        {
+            if (scanBaseTof_ < 0)
+            {
+                // First valid reading — initialise baseline
+                scanBaseTof_ = leftTof;
+            }
+            else
+            {
+                int drop = scanBaseTof_ - leftTof;
+                if (drop >= SCAN_DROP_MM)
+                {
+                    // Sudden reduction detected — record encoder position and move to confirm
+                    scanDropEncCm_ = encNow;
+                    scanStep_ = ScanStep::CONFIRMING;
+                    Serial.print(F("[BoxFind] Drop detected at tof="));
+                    Serial.print(leftTof);
+                    Serial.print(F("mm (base="));
+                    Serial.print(scanBaseTof_);
+                    Serial.println(F("mm) — confirming"));
+                }
+                else
+                {
+                    // No drop: keep updating baseline (slow drift OK, sudden jump = box)
+                    // Use a gentle low-pass so baseline doesn't chase a real box
+                    scanBaseTof_ = (scanBaseTof_ * 3 + leftTof) / 4;
+                }
+            }
+        }
+        break;
+    }
+
+    // ── CONFIRMING: check drop persists over SCAN_CONFIRM_CM ─
+    case ScanStep::CONFIRMING:
+    {
+        float distSinceDrop = encNow - scanDropEncCm_;
+
+        if (leftTof > 0)
+        {
+            int drop = scanBaseTof_ - leftTof;
+            if (drop < SCAN_DROP_MM)
+            {
+                // Drop disappeared — false alarm, go back to scanning
+                Serial.println(F("[BoxFind] Drop lost — false alarm, resuming scan"));
+                scanBaseTof_ = leftTof;  // reset baseline to current
+                scanStep_ = ScanStep::SCANNING;
+                break;
+            }
+        }
+
+        if (distSinceDrop >= SCAN_CONFIRM_CM)
+        {
+            // Box confirmed — stop, then advance SCAN_EXTRA_CM
+            robot_.stop();
+            Serial.println(F("[BoxFind] Box CONFIRMED — positioning"));
+            robot_.moveForwardCm((int)SCAN_EXTRA_CM);  // blocking 1 cm nudge
+            scanStep_ = ScanStep::POSITIONING;
+        }
+        break;
+    }
+
+    // ── POSITIONING: moveForwardCm() already completed ───
+    case ScanStep::POSITIONING:
+    {
+        Serial.print(F("[BoxFind] In position. Total travel: "));
+        Serial.print(travelled);
+        Serial.println(F(" cm — initiating lift"));
+        transitionTo(RobotPhase::BOX_LIFTING);
+        break;
+    }
+    }
 }
 
 // ═════════════════════════════════════════════════════════════
