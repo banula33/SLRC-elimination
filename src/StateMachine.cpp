@@ -125,8 +125,26 @@ void StateMachine::updateBoxFinding()
     float encNow = (sensors_.getLeftEncoderCm() + sensors_.getRightEncoderCm()) * 0.5f;
     float travelled = encNow - scanEncStart_;
 
-    // Current left ToF (updated every 1 s by SensorManager)
+    // Current left ToF (updated by SensorManager on interval)
     int leftTof = sensors_.getLeftTof();
+
+    // ── Periodic debug print (every 1 s) ──────────────────
+    unsigned long now = millis();
+    if ((now - scanLastPrintMs_) >= 1000UL)
+    {
+        scanLastPrintMs_ = now;
+        Serial.print(F("[BoxFind] tof="));
+        Serial.print(leftTof);
+        Serial.print(F("mm  base="));
+        Serial.print(scanBaseTof_);
+        Serial.print(F("mm  dist="));
+        Serial.print(travelled, 1);
+        Serial.print(F("cm  state="));
+        Serial.println(
+            scanStep_ == ScanStep::SCANNING    ? F("SCANNING") :
+            scanStep_ == ScanStep::CONFIRMING  ? F("CONFIRMING") :
+                                                  F("POSITIONING"));
+    }
 
     switch (scanStep_)
     {
@@ -189,7 +207,7 @@ void StateMachine::updateBoxFinding()
             // Box confirmed — stop, then advance SCAN_EXTRA_CM
             robot_.stop();
             Serial.println(F("[BoxFind] Box CONFIRMED — positioning"));
-            robot_.moveForwardCm((int)SCAN_EXTRA_CM);  // blocking 1 cm nudge
+            // robot_.moveForwardCm((int)SCAN_EXTRA_CM);  // blocking 1 cm nudge
             scanStep_ = ScanStep::POSITIONING;
         }
         break;

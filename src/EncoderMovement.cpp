@@ -6,7 +6,7 @@ const float TARGET_DISTANCE_CM = 20.0;   // <-- set your desired distance here
 
 // Wheel & encoder specs
 const float WHEEL_DIAMETER_CM = 6.5;
-const float PPR               = 1550.0;
+const float PPR               = 830.0;
 const float WHEEL_CIRCUM_CM   = PI * WHEEL_DIAMETER_CM;  // ~20.42 cm
 
 // Motor base speed (0–255). Lower = more accurate stopping

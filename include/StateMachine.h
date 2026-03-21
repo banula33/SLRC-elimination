@@ -64,12 +64,13 @@ private:
     int      scanBaseTof_    = -1;  // Stable ToF reading before drop (mm)
     float    scanDropEncCm_  = 0.0f; // Encoder position when drop first seen (cm)
     float    scanEncStart_   = 0.0f; // Encoder position at phase entry (cm)
+    unsigned long scanLastPrintMs_ = 0; // Debug print throttle
 
     // Detection thresholds (tune as needed)
     static constexpr int   SCAN_DROP_MM       = 70;   // 7 cm drop triggers detection
-    static constexpr float SCAN_CONFIRM_CM    = 5.0f; // hold drop for 5 cm to confirm
+    static constexpr float SCAN_CONFIRM_CM    = 8.0f; // hold drop for 8 cm to confirm
     static constexpr float SCAN_EXTRA_CM      = 1.0f; // advance 1 cm after confirmation
-    static constexpr int   SCAN_FORWARD_PWM   = 100;  // drive speed while scanning
+    static constexpr int   SCAN_FORWARD_PWM   = 50;
 
     // ── Box-lifting sub-state machine ──────────────────────
     enum class LiftStep : uint8_t

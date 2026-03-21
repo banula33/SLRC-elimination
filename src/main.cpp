@@ -7,6 +7,7 @@
 #include "RawGyro.h"
 #include "gripper_arm.h"
 #include "armSlider.h"
+#include "RobotTests.h"
 
 // ─────────────────────────────────────────────────────────────
 //  ★  TESTING MODE FLAG
@@ -16,11 +17,21 @@
 static constexpr bool TESTING_MODE = true;
 
 // ─────────────────────────────────────────────────────────────
+//  ★  ROBOT TEST FLAG
+//     Set RUN_ROBOT_TEST to true to run a specific movement or
+//     mechanism test instead of the normal state machine.
+//     Choose which test to run by setting ACTIVE_TEST.
+//     When done, set RUN_ROBOT_TEST back to false.
+// ─────────────────────────────────────────────────────────────
+static constexpr bool       RUN_ROBOT_TEST = true;
+static constexpr RobotTest  ACTIVE_TEST    = RobotTest::MOVE_FORWARD_10CM;
+
+// ─────────────────────────────────────────────────────────────
 //  Hardware instances
 // ─────────────────────────────────────────────────────────────
 // Motor driver: ENA=4, IN1=6, IN2=7, ENB=5, IN3=8, IN4=9
 // Wheel ø 6.5 cm, 20 PPR, 15 cm wheelbase, max 255, min 50
-MoveController robot(4, 6, 7, 5, 8, 9, 6.5, 20, 15.0, 255, 50);
+MoveController robot(4, 7, 6, 5, 9, 8, 6.5, 250, 18.0, 255, 50);
 
 // ToF XSHUT pins
 const uint8_t TOF_LEFT_XSHUT_PIN  = 26;
@@ -157,6 +168,13 @@ void setup()
     }
 
     // Start the state machine at Phase 1 (BOX_FINDING)
+    // Skip if a robot test is selected — halt after test instead.
+    if (RUN_ROBOT_TEST)
+    {
+        runRobotTest(ACTIVE_TEST, robot);
+        while (true) { /* halt — re-flash to resume normal operation */ }
+    }
+
     stateMachine.begin();
 
     Serial.println(F("=== SLRC Elimination Robot Ready ==="));
