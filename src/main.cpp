@@ -27,6 +27,11 @@ const uint8_t TOF_FRONT_XSHUT_PIN = 24;
 
 ToFArray tofArray(TOF_LEFT_XSHUT_PIN, TOF_RIGHT_XSHUT_PIN, TOF_FRONT_XSHUT_PIN);
 
+// Nemma motor driver pins 
+const uint8_t NEMMA_MOTOR_ENABLE = 23;
+const uint8_t NEMMA_MOTOR_STEP = 10;
+const uint8_t NEMMA_MOTOR_DIR = 11;
+
 // ─────────────────────────────────────────────────────────────
 //  Core managers
 // ─────────────────────────────────────────────────────────────
@@ -122,7 +127,12 @@ static void runSensorTests()
 // ─────────────────────────────────────────────────────────────
 void setup()
 {
-    Serial.begin(500000);
+    pinMode(NEMMA_MOTOR_ENABLE, OUTPUT);
+    pinMode(NEMMA_MOTOR_STEP, OUTPUT);
+    pinMode(NEMMA_MOTOR_DIR, OUTPUT);
+    digitalWrite(NEMMA_MOTOR_ENABLE, HIGH);
+
+    Serial.begin(115200);
 
     // Motor drivers
     robot.begin();
