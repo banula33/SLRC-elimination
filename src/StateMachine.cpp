@@ -2,7 +2,7 @@
 #include "SensorManager.h"
 #include "MoveController.h"
 #include "gripper_arm.h"
-#include "stepper_motor.h"
+#include "armSlider.h"
 
 // ─────────────────────────────────────────────────────────────
 //  Construction
@@ -209,10 +209,28 @@ void StateMachine::updateBoxFinding()
 
 // ═════════════════════════════════════════════════════════════
 //  PHASE 2 — BOX LIFTING  (sub-state machine)
+//
+//  Slot horizontal positions (slider from home = left-most):
+//    boxesLoaded == 0  →  16 cm  (first box, rightmost slot)
+//    boxesLoaded == 1  →  12 cm  (second box)
+//    boxesLoaded == 2  →   7 cm  (third box, closest to home)
 // ═════════════════════════════════════════════════════════════
+
+// Returns the horizontal slider target (cm) for the current box count.
+static float slotPositionCm(uint8_t boxesLoaded)
+{
+    switch (boxesLoaded)
+    {
+    case 0:  return 16.0f;
+    case 1:  return 12.0f;
+    case 2:  return  7.0f;
+    default: return  7.0f; // clamp to last slot if more boxes than expected
+    }
+}
+
 void StateMachine::resetLiftSequence()
 {
-    liftStep_ = LiftStep::LOWER_HOOK;
+    liftStep_        = LiftStep::LOWER_HOOK;
     liftStepStartMs_ = millis();
 }
 
@@ -226,74 +244,80 @@ void StateMachine::updateBoxLifting()
     }
 
     // ── Sub-state machine ─────────────────────────────────
-    // Each step is blocking-style using the existing servo/stepper
-    // helpers which already use delay() internally.
-    //
-    // For a non-blocking approach later, track elapsed time
-    // against liftStepStartMs_ and advance liftStep_ when done.
+    // All steps are blocking (servo / stepper helpers use delay internally).
+    // Each step executes once per state-machine tick, then advances liftStep_.
 
     switch (liftStep_)
     {
+    // Step 1: Lower the hook down to grab position
     case LiftStep::LOWER_HOOK:
         Serial.println(F("  [Lift] Lowering hook"));
-        // TODO: moveArmSmooth(currentArmPos, HOOK_DOWN_DEG);
+        moveArmSmooth(currentArmDeg(), ARM_DOWN_DEG);
+        delay(200); // settle
         liftStep_ = LiftStep::GRIP_BOX;
-        liftStepStartMs_ = millis();
         break;
 
+    // Step 2: Close gripper — grab the box
     case LiftStep::GRIP_BOX:
         Serial.println(F("  [Lift] Gripping box"));
-        // TODO: gripperClose();
+        gripperClose();
+        delay(500); // allow gripper to fully close
         liftStep_ = LiftStep::LIFT_VERTICAL;
-        liftStepStartMs_ = millis();
         break;
 
+    // Step 3: Lift arm back up (box held)
     case LiftStep::LIFT_VERTICAL:
         Serial.println(F("  [Lift] Lifting vertically"));
-        // TODO: moveArmSmooth(HOOK_DOWN_DEG, HOOK_UP_DEG);
+        moveArmSmooth(currentArmDeg(), ARM_UP_DEG);
+        delay(200); // settle
         liftStep_ = LiftStep::MOVE_HORIZONTAL;
-        liftStepStartMs_ = millis();
         break;
 
+    // Step 4: Slide horizontally to the correct storage slot
     case LiftStep::MOVE_HORIZONTAL:
     {
-        // Horizontal offset depends on how many boxes already loaded
-        Serial.print(F("  [Lift] Moving horizontal — slot "));
-        Serial.println(boxesLoaded_);
-        // TODO: rotateSteps(STEPS_PER_SLOT * boxesLoaded_);
+        float targetCm = slotPositionCm(boxesLoaded_);
+        Serial.print(F("  [Lift] Sliding to slot "));
+        Serial.print(boxesLoaded_);
+        Serial.print(F(" → "));
+        Serial.print(targetCm, 1);
+        Serial.println(F(" cm"));
+        armSliderMoveTo(targetCm);
         liftStep_ = LiftStep::LOWER_PARTIAL;
-        liftStepStartMs_ = millis();
         break;
     }
 
+    // Step 5: Lower arm partially over the storage slot
     case LiftStep::LOWER_PARTIAL:
-        Serial.println(F("  [Lift] Lowering partially"));
-        // TODO: moveArmSmooth(HOOK_UP_DEG, PARTIAL_DOWN_DEG);
+        Serial.println(F("  [Lift] Lowering partially over slot"));
+        moveArmSmooth(currentArmDeg(), ARM_PARTIAL_DEG);
+        delay(200); // settle
         liftStep_ = LiftStep::RELEASE_GRIP;
-        liftStepStartMs_ = millis();
         break;
 
+    // Step 6: Open gripper — deposit the box
     case LiftStep::RELEASE_GRIP:
         Serial.println(F("  [Lift] Releasing grip"));
-        // TODO: gripperOpen();
+        gripperOpen();
+        delay(400); // allow gripper to fully open
         liftStep_ = LiftStep::RETRACT_HOOK;
-        liftStepStartMs_ = millis();
         break;
 
+    // Step 7: Raise arm and return slider to home
     case LiftStep::RETRACT_HOOK:
-        Serial.println(F("  [Lift] Retracting hook to start"));
-        // TODO: moveArmSmooth(PARTIAL_DOWN_DEG, HOOK_UP_DEG);
-        //       + move horizontal back to leftmost position
+        Serial.println(F("  [Lift] Returning arm & slider to home"));
+        moveArmSmooth(currentArmDeg(), ARM_UP_DEG);
+        armSliderReturn(); // slider back to 0 cm
         liftStep_ = LiftStep::DONE;
         break;
 
+    // Sequence complete — decide next phase
     case LiftStep::DONE:
+    {
         boxesLoaded_++;
-        Serial.print(F("  [Lift] Box loaded. Total: "));
+        Serial.print(F("  [Lift] Box stored. Total loaded: "));
         Serial.println(boxesLoaded_);
 
-        // Decide: more boxes to collect, or move on?
-        // TODO: replace constant with actual target count
         const uint8_t TOTAL_BOXES = 3;
         if (boxesLoaded_ < TOTAL_BOXES)
         {
@@ -301,10 +325,11 @@ void StateMachine::updateBoxLifting()
         }
         else
         {
-            Serial.println(F("[BoxLift] All boxes collected"));
+            Serial.println(F("[BoxLift] All boxes collected — navigating to next section"));
             transitionTo(RobotPhase::PATH_FINDING);
         }
         break;
+    }
     }
 }
 

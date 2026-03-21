@@ -5,6 +5,8 @@
 #include "SensorManager.h"
 #include "StateMachine.h"
 #include "RawGyro.h"
+#include "gripper_arm.h"
+#include "armSlider.h"
 
 // ─────────────────────────────────────────────────────────────
 //  ★  TESTING MODE FLAG
@@ -142,6 +144,12 @@ void setup()
 
     // Initialise sensors
     sensorMgr.begin();
+
+    // Initialise gripper arm servos (arm pin 39, gripper pin 41)
+    initGripperArm();
+
+    // Initialise horizontal slider (pins already configured above)
+    initArmSlider();
 
     if (TESTING_MODE)
     {
