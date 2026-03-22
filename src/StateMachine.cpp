@@ -31,6 +31,8 @@ void StateMachine::update()
     // Non-blocking PID steering — called every loop for continuous correction
     robot_.updateSteering();
 
+    RobotPhase startPhase = phase_;
+
     switch (phase_)
     {
     case RobotPhase::IDLE:
@@ -55,7 +57,12 @@ void StateMachine::update()
         break;
     }
 
-    phaseJustEntered_ = false;
+    // Only clear the "just entered" flag if we stayed in the same phase.
+    // If the phase changed (via transitionTo), the flag is set true for the NEXT loop.
+    if (phase_ == startPhase)
+    {
+        phaseJustEntered_ = false;
+    }
 }
 
 // ─────────────────────────────────────────────────────────────
