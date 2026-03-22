@@ -316,3 +316,147 @@ void MoveController::moveBackwardCm(int cm)
     analogWrite(ENA, 0);
     analogWrite(ENB, 0);
 }
+
+// ─────────────────────────────────────────────────────────────
+//  In-place pivot turns (PID-controlled via encoders)
+//
+//  Each wheel travels arc = (degrees / 360) × π × wheelBase
+//  in opposite directions. The PID controls speed based on
+//  how many pulses remain until the target arc is reached.
+// ─────────────────────────────────────────────────────────────
+void MoveController::turnRightDeg(int degrees)
+{
+    noInterrupts();
+    long startRight = rightPulse;
+    long startLeft  = leftPulse;
+    interrupts();
+
+    const float PI_F = 3.14159265f;
+    // Arc each wheel must travel for this turn angle
+    float arcCm = ((float)degrees / 360.0f) * PI_F * wheelBase;
+    float wheelCirc = PI_F * wheelDiameter;
+    long targetPulses = (long)((arcCm / wheelCirc) * (float)encPPR);
+
+    float integral = 0.0f;
+    float lastError = 0.0f;
+    unsigned long lastTime = millis();
+
+    while (true) {
+        noInterrupts();
+        long lNow = leftPulse;
+        long rNow = rightPulse;
+        interrupts();
+
+        // Right turn: left goes forward (+), right goes backward (−)
+        long lDelta = lNow - startLeft;    // positive = forward
+        long rDelta = startRight - rNow;   // positive = backward
+        long avgPulses = (abs(lDelta) + abs(rDelta)) / 2;
+
+        float error = (float)(targetPulses - avgPulses);
+        if (error <= 0.0f) break;
+
+        unsigned long now = millis();
+        float dt = ((float)(now - lastTime)) / 1000.0f;
+        lastTime = now;
+        if (dt <= 0.0f) dt = 0.001f;
+        if (dt > 0.2f) dt = 0.2f;
+
+        integral += error * dt;
+        float maxIntegral = (float)maxSpeed * 2.0f;
+        if (integral > maxIntegral) integral = maxIntegral;
+        if (integral < -maxIntegral) integral = -maxIntegral;
+
+        float derivative = (error - lastError) / dt;
+        lastError = error;
+
+        float output = Kp * error + Ki * integral + Kd * derivative;
+
+        int turnSpeed = (int)output;
+        if (turnSpeed > maxSpeed) turnSpeed = maxSpeed;
+        if (turnSpeed < 0) turnSpeed = 0;
+        if (turnSpeed < minSpeed && error > 20.0f) turnSpeed = minSpeed;
+
+        // Left motor forward
+        digitalWrite(IN1, LOW);
+        digitalWrite(IN2, HIGH);
+        analogWrite(ENA, turnSpeed);
+
+        // Right motor backward
+        digitalWrite(IN3, HIGH);
+        digitalWrite(IN4, LOW);
+        analogWrite(ENB, turnSpeed);
+
+        delay(5);
+    }
+
+    analogWrite(ENA, 0);
+    analogWrite(ENB, 0);
+}
+
+void MoveController::turnLeftDeg(int degrees)
+{
+    noInterrupts();
+    long startRight = rightPulse;
+    long startLeft  = leftPulse;
+    interrupts();
+
+    const float PI_F = 3.14159265f;
+    float arcCm = ((float)degrees / 360.0f) * PI_F * wheelBase;
+    float wheelCirc = PI_F * wheelDiameter;
+    long targetPulses = (long)((arcCm / wheelCirc) * (float)encPPR);
+
+    float integral = 0.0f;
+    float lastError = 0.0f;
+    unsigned long lastTime = millis();
+
+    while (true) {
+        noInterrupts();
+        long lNow = leftPulse;
+        long rNow = rightPulse;
+        interrupts();
+
+        // Left turn: right goes forward (+), left goes backward (−)
+        long rDelta = rNow - startRight;   // positive = forward
+        long lDelta = startLeft - lNow;    // positive = backward
+        long avgPulses = (abs(rDelta) + abs(lDelta)) / 2;
+
+        float error = (float)(targetPulses - avgPulses);
+        if (error <= 0.0f) break;
+
+        unsigned long now = millis();
+        float dt = ((float)(now - lastTime)) / 1000.0f;
+        lastTime = now;
+        if (dt <= 0.0f) dt = 0.001f;
+        if (dt > 0.2f) dt = 0.2f;
+
+        integral += error * dt;
+        float maxIntegral = (float)maxSpeed * 2.0f;
+        if (integral > maxIntegral) integral = maxIntegral;
+        if (integral < -maxIntegral) integral = -maxIntegral;
+
+        float derivative = (error - lastError) / dt;
+        lastError = error;
+
+        float output = Kp * error + Ki * integral + Kd * derivative;
+
+        int turnSpeed = (int)output;
+        if (turnSpeed > maxSpeed) turnSpeed = maxSpeed;
+        if (turnSpeed < 0) turnSpeed = 0;
+        if (turnSpeed < minSpeed && error > 20.0f) turnSpeed = minSpeed;
+
+        // Left motor backward
+        digitalWrite(IN1, HIGH);
+        digitalWrite(IN2, LOW);
+        analogWrite(ENA, turnSpeed);
+
+        // Right motor forward
+        digitalWrite(IN3, LOW);
+        digitalWrite(IN4, HIGH);
+        analogWrite(ENB, turnSpeed);
+
+        delay(5);
+    }
+
+    analogWrite(ENA, 0);
+    analogWrite(ENB, 0);
+}

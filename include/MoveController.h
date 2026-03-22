@@ -44,6 +44,12 @@ public:
   void setPID(float Kp_, float Ki_, float Kd_);
   void moveForwardCm(int cm);
   void moveBackwardCm(int cm);
+
+  // In-place pivot turns using encoder feedback + PID.
+  // Left wheel and right wheel spin in opposite directions.
+  void turnRightDeg(int degrees);
+  void turnLeftDeg(int degrees);
+
   void stop();
   void setMotorSpeedsPWM(int leftPWM, int rightPWM);
   void setMotorSpeedsMMS(int leftMMs, int rightMMs);

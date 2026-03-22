@@ -24,7 +24,7 @@ static constexpr bool TESTING_MODE = true;
 //     When done, set RUN_ROBOT_TEST back to false.
 // ─────────────────────────────────────────────────────────────
 static constexpr bool       RUN_ROBOT_TEST = true;
-static constexpr RobotTest  ACTIVE_TEST    = RobotTest::MOVE_FORWARD_90CM;
+static constexpr RobotTest  ACTIVE_TEST    = RobotTest::TURN_RIGHT_90DEG;
 
 // ─────────────────────────────────────────────────────────────
 //  Hardware instances
@@ -62,7 +62,7 @@ static void runSensorTests()
     Serial.println(F("  SENSOR TEST MODE — 10 seconds"));
     Serial.println(F("========================================"));
 
-    const unsigned long TEST_DURATION_MS  = 10000UL;
+    const unsigned long TEST_DURATION_MS  = 5000UL;
     const unsigned long SAMPLE_INTERVAL_MS = 500UL;
 
     unsigned long testStart  = millis();
