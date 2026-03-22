@@ -134,8 +134,8 @@ void MoveController::setPID(float Kp_, float Ki_, float Kd_)
 // ─────────────────────────────────────────────────────────────
 void MoveController::stop()
 {
-    analogWrite(ENA, 0);
-    analogWrite(ENB, 0);
+    analogWrite(ENA, 1);
+    analogWrite(ENB, 1);
     digitalWrite(IN1, LOW);
     digitalWrite(IN2, LOW);
     digitalWrite(IN3, LOW);
