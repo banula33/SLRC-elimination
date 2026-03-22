@@ -29,7 +29,7 @@ static void test_moveForward90cm(MoveController &robot)
 static void test_turnRight90(MoveController &robot)
 {
     Serial.println(F("[Test] TURN_RIGHT_90DEG — encoder PID turn"));
-    robot.turnRightDeg(90);
+    robot.turnRightDeg(85);
     robot.stop();
     Serial.println(F("[Test] Done — turned right 90°"));
 }

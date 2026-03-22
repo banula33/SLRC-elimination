@@ -32,7 +32,7 @@ static constexpr RobotTest ACTIVE_TEST = RobotTest::MOVE_FORWARD_90CM;
 // ─────────────────────────────────────────────────────────────
 // Motor driver: ENA=4, IN1=6, IN2=7, ENB=5, IN3=8, IN4=9
 // Wheel ø 6.5 cm, 20 PPR, 15 cm wheelbase, max 255, min 50
-MoveController robot(4, 7, 6, 5, 9, 8, 6.5, 1630, 18.0, 255, 50);
+MoveController robot(4, 7, 6, 5, 9, 8, 6.5, 1630, 18.0, 120, 50);
 
 // ToF XSHUT pins
 const uint8_t TOF_LEFT_XSHUT_PIN = 26;
@@ -189,6 +189,8 @@ void setup()
     // Calibrate line sensors — move robot by hand over BOTH
     // the line colour and background during this 5-second window.
     calibrateLineSensors(5000);
+
+    delay(10000); // settle before diagnostics or state machine
 
     if (TESTING_MODE)
     {

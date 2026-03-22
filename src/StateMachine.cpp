@@ -17,7 +17,7 @@ StateMachine::StateMachine(SensorManager &sensors,
 // ─────────────────────────────────────────────────────────────
 void StateMachine::begin()
 {
-    transitionTo(RobotPhase::INITIAL_POSITIONING);
+    transitionTo(RobotPhase::LINE_FOLLOWING);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -137,11 +137,11 @@ void StateMachine::updateInitialPositioning()
     if (phaseJustEntered_)
     {
         Serial.println(F("[InitPos] Moving forward 30 cm"));
-        robot_.moveForwardCm(35);
+        robot_.moveForwardCm(40);
         delay(2000);
 
         Serial.println(F("[InitPos] Turning left 90 deg"));
-        robot_.turnLeftDeg(90);
+        robot_.turnLeftDeg(85);
         delay(2000);
 
         robot_.moveForwardCm(15);
@@ -433,6 +433,7 @@ void StateMachine::updateBoxLifting()
         const uint8_t TOTAL_BOXES = 2;
         if (boxesLoaded_ < TOTAL_BOXES)
         {
+            robot_.moveForwardCm(3); // nudge forward to clear current box from ToF view
             transitionTo(RobotPhase::BOX_FINDING);
         }
         else
@@ -485,6 +486,7 @@ void StateMachine::updatePathFinding()
         {
             robot_.stop();
             Serial.println(F("[PathFind] Wall reached — turning left"));
+            delay(500); // settle before turn
             pathStep_ = PathStep::TURN_LEFT;
         }
         break;
@@ -493,8 +495,9 @@ void StateMachine::updatePathFinding()
     // ── Step 2: Turn left 90° (blocking) ────────────────────
     case PathStep::TURN_LEFT:
     {
-        robot_.turnLeftDeg(90);
+        robot_.turnLeftDeg(85);
         robot_.stop();
+        delay(500); // settle after turn
         Serial.println(F("[PathFind] Turned left — searching for line"));
 
         // Enable IR array for line detection (already calibrated at boot)
@@ -518,6 +521,7 @@ void StateMachine::updatePathFinding()
         {
             robot_.stop();
             Serial.println(F("[PathFind] Line found — transitioning to LINE_FOLLOWING"));
+            delay(500); // settle before line follow
             transitionTo(RobotPhase::LINE_FOLLOWING);
         }
         break;

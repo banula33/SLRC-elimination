@@ -48,7 +48,7 @@ MoveController::MoveController(int ena, int in1, int in2, int enb, int in3, int 
     rightEncA(-1), rightEncB(-1), leftEncA(-1), leftEncB(-1),
     encoderConfigured(false),
     wheelDiameter(wheelDiameterCm), encPPR(encoderPPR), wheelBase(wheelBaseCm),
-    maxSpeed(maxSpeed_), minSpeed(minSpeed_), Kp(0.4f), Ki(0.0f), Kd(0.02f) {}
+    maxSpeed(maxSpeed_), minSpeed(minSpeed_), Kp(0.3f), Ki(0.0f), Kd(0.035f) {}
 
 void MoveController::begin()
 {
@@ -138,12 +138,23 @@ void MoveController::setPID(float Kp_, float Ki_, float Kd_)
 void MoveController::stop()
 {
     pidActive_ = false;
-    analogWrite(ENA, 1);
-    analogWrite(ENB, 1);
+
+    // Active Braking:
+    // Set IN pins to SAME value (LOW/LOW) to short motor terminals to Ground.
+    // Set Enable pins HIGH to activate the H-bridge switches.
     digitalWrite(IN1, LOW);
     digitalWrite(IN2, LOW);
     digitalWrite(IN3, LOW);
     digitalWrite(IN4, LOW);
+    analogWrite(ENA, 255);
+    analogWrite(ENB, 255);
+
+    // Wait briefly for kinetic energy to dissipate
+    delay(150);
+
+    // Now disable motors to save power
+    analogWrite(ENA, 0);
+    analogWrite(ENB, 0);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -382,6 +393,7 @@ void MoveController::moveForwardCm(int cm)
 
         delay(5);
     }
+    stop();
 
     analogWrite(ENA, 0);
     analogWrite(ENB, 0);
@@ -561,6 +573,7 @@ void MoveController::turnRightDeg(int degrees)
 
         delay(5);
     }
+    stop();
 
     analogWrite(ENA, 0);
     analogWrite(ENB, 0);
@@ -639,6 +652,7 @@ void MoveController::turnLeftDeg(int degrees)
 
         delay(5);
     }
+    stop();
 
     analogWrite(ENA, 0);
     analogWrite(ENB, 0);
