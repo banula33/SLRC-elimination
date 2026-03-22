@@ -70,7 +70,7 @@ private:
     static constexpr int SCAN_DROP_MM = 70;        // 7 cm drop triggers detection
     static constexpr float SCAN_CONFIRM_CM = 8.0f; // hold drop for 8 cm to confirm
     static constexpr float SCAN_EXTRA_CM = 1.0f;   // advance 1 cm after confirmation
-    static constexpr int SCAN_FORWARD_PWM = 50;
+    static constexpr int SCAN_FORWARD_PWM = 70;
 
     // ── Box-lifting sub-state machine ──────────────────────
     enum class LiftStep : uint8_t

@@ -15,6 +15,9 @@ static uint8_t _rightEncB_pin = 0;
 static uint8_t _leftEncA_pin  = 0;
 static uint8_t _leftEncB_pin  = 0;
 
+static constexpr bool PID_DEBUG_PRINTS = true;
+static constexpr unsigned long PID_PRINT_INTERVAL_MS = 100UL;
+
 static void isrRightA()
 {
     bool a = digitalRead(_rightEncA_pin);
@@ -45,7 +48,7 @@ MoveController::MoveController(int ena, int in1, int in2, int enb, int in3, int 
     rightEncA(-1), rightEncB(-1), leftEncA(-1), leftEncB(-1),
     encoderConfigured(false),
     wheelDiameter(wheelDiameterCm), encPPR(encoderPPR), wheelBase(wheelBaseCm),
-    maxSpeed(maxSpeed_), minSpeed(minSpeed_), Kp(0.45f), Ki(0.0f), Kd(0.09f) {}
+    maxSpeed(maxSpeed_), minSpeed(minSpeed_), Kp(0.4f), Ki(0.0f), Kd(0.02f) {}
 
 void MoveController::begin()
 {
@@ -134,12 +137,105 @@ void MoveController::setPID(float Kp_, float Ki_, float Kd_)
 // ─────────────────────────────────────────────────────────────
 void MoveController::stop()
 {
+    pidActive_ = false;
     analogWrite(ENA, 1);
     analogWrite(ENB, 1);
     digitalWrite(IN1, LOW);
     digitalWrite(IN2, LOW);
     digitalWrite(IN3, LOW);
     digitalWrite(IN4, LOW);
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Non-blocking continuous drive with PID straight-line correction.
+//
+//  Call driveStraight(basePWM) once to start, then call
+//  updateSteering() every loop iteration.
+//  Call stop() to end.
+// ─────────────────────────────────────────────────────────────
+void MoveController::driveStraight(int basePWM)
+{
+    // Snapshot encoder positions
+    noInterrupts();
+    pidStartLeft_  = leftPulse;
+    pidStartRight_ = rightPulse;
+    interrupts();
+
+    pidBasePWM_       = basePWM;
+    pidSteerIntegral_ = 0.0f;
+    pidSteerLastErr_  = 0.0f;
+    pidLastMs_        = millis();
+    pidLastPrint_     = 0;
+    pidActive_        = true;
+
+    // Set initial motor direction (forward if positive, backward if negative)
+    if (basePWM >= 0) {
+        digitalWrite(IN1, LOW);
+        digitalWrite(IN2, HIGH);
+        digitalWrite(IN3, LOW);
+        digitalWrite(IN4, HIGH);
+    } else {
+        digitalWrite(IN1, HIGH);
+        digitalWrite(IN2, LOW);
+        digitalWrite(IN3, HIGH);
+        digitalWrite(IN4, LOW);
+    }
+    analogWrite(ENA, abs(basePWM));
+    analogWrite(ENB, abs(basePWM));
+}
+
+void MoveController::updateSteering()
+{
+    if (!pidActive_ || !encoderConfigured) return;
+
+    unsigned long now = millis();
+    float dt = ((float)(now - pidLastMs_)) / 1000.0f;
+    pidLastMs_ = now;
+    if (dt <= 0.0f) return;        // too fast, skip
+    if (dt > 0.2f) dt = 0.2f;     // cap large gaps
+
+    // Read encoder deltas
+    noInterrupts();
+    long lNow = leftPulse;
+    long rNow = rightPulse;
+    interrupts();
+
+    long lDelta = abs(lNow - pidStartLeft_);
+    long rDelta = abs(rNow - pidStartRight_);
+
+    // Steering error: positive → left has turned more → slow left, speed up right
+    float steerError = (float)(lDelta - rDelta);
+
+    pidSteerIntegral_ += steerError * dt;
+    // Anti-windup
+    float maxI = (float)maxSpeed * 0.5f;
+    if (pidSteerIntegral_ >  maxI) pidSteerIntegral_ =  maxI;
+    if (pidSteerIntegral_ < -maxI) pidSteerIntegral_ = -maxI;
+
+    float steerDerivative = (steerError - pidSteerLastErr_) / dt;
+    pidSteerLastErr_ = steerError;
+
+    float correction = Kp * steerError + Ki * pidSteerIntegral_ + Kd * steerDerivative;
+
+    int base = abs(pidBasePWM_);
+    int leftSpeed  = base - (int)correction;
+    int rightSpeed = base + (int)correction;
+    leftSpeed  = constrain(leftSpeed,  0, maxSpeed);
+    rightSpeed = constrain(rightSpeed, 0, maxSpeed);
+
+    analogWrite(ENA, leftSpeed);
+    analogWrite(ENB, rightSpeed);
+
+    // Debug prints
+    if (PID_DEBUG_PRINTS && (now - pidLastPrint_) >= PID_PRINT_INTERVAL_MS) {
+        pidLastPrint_ = now;
+        Serial.print(F("[PID DRV] err="));  Serial.print(steerError, 1);
+        Serial.print(F(" corr="));          Serial.print(correction, 1);
+        Serial.print(F(" L="));             Serial.print(leftSpeed);
+        Serial.print(F(" R="));             Serial.print(rightSpeed);
+        Serial.print(F(" lP="));            Serial.print(lDelta);
+        Serial.print(F(" rP="));            Serial.println(rDelta);
+    }
 }
 
 void MoveController::setMotorSpeedsPWM(int leftPWM, int rightPWM)
@@ -199,12 +295,17 @@ void MoveController::moveForwardCm(int cm)
     float wheelCirc = PI_F * wheelDiameter;
     long targetPulses = (long)(((float)cm / wheelCirc) * (float)encPPR);
 
-    float integral = 0.0f;
-    float lastError = 0.0f;
+    // PID state for straight-line correction
+    float steerIntegral  = 0.0f;
+    float steerLastError = 0.0f;
     unsigned long lastTime = millis();
+    unsigned long lastPidPrint = 0;
+
+    // Slow-down zone: start decelerating this many pulses before target
+    long slowZonePulses = targetPulses / 4;
+    if (slowZonePulses < 10) slowZonePulses = 10;
 
     while (true) {
-        // ISR updates pulses automatically — just read them
         noInterrupts();
         long rNow = rightPulse;
         long lNow = leftPulse;
@@ -214,8 +315,24 @@ void MoveController::moveForwardCm(int cm)
         long lDelta = lNow - startLeft;
         long avgPulses = (abs(rDelta) + abs(lDelta)) / 2;
 
-        float error = (float)(targetPulses - avgPulses);
-        if (error <= 0.0f) break;
+        // ── Stop condition ─────────────────────────────────
+        if (avgPulses >= targetPulses) break;
+
+        // ── Base speed (distance-based deceleration) ───────
+        long remaining = targetPulses - avgPulses;
+        int baseSpeed;
+        if (remaining <= slowZonePulses) {
+            // Linear ramp from maxSpeed down to minSpeed
+            baseSpeed = (int)map(remaining, 0, slowZonePulses, minSpeed, maxSpeed);
+            if (baseSpeed < minSpeed) baseSpeed = minSpeed;
+        } else {
+            baseSpeed = maxSpeed;
+        }
+
+        // ── Steering PID (straight-line correction) ────────
+        // Error = how much left has turned more than right.
+        // Positive error → left ahead → slow left, speed up right.
+        float steerError = (float)(lDelta - rDelta);
 
         unsigned long now = millis();
         float dt = ((float)(now - lastTime)) / 1000.0f;
@@ -223,28 +340,45 @@ void MoveController::moveForwardCm(int cm)
         if (dt <= 0.0f) dt = 0.001f;
         if (dt > 0.2f) dt = 0.2f;
 
-        integral += error * dt;
-        float maxIntegral = (float)maxSpeed * 2.0f;
-        if (integral > maxIntegral) integral = maxIntegral;
-        if (integral < -maxIntegral) integral = -maxIntegral;
+        steerIntegral += steerError * dt;
+        // Anti-windup
+        float maxI = (float)maxSpeed * 0.5f;
+        if (steerIntegral >  maxI) steerIntegral =  maxI;
+        if (steerIntegral < -maxI) steerIntegral = -maxI;
 
-        float derivative = (error - lastError) / dt;
-        lastError = error;
+        float steerDerivative = (steerError - steerLastError) / dt;
+        steerLastError = steerError;
 
-        float output = Kp * error + Ki * integral + Kd * derivative;
+        float correction = Kp * steerError + Ki * steerIntegral + Kd * steerDerivative;
 
-        int forwardSpeed = (int)output;
-        if (forwardSpeed > maxSpeed) forwardSpeed = maxSpeed;
-        if (forwardSpeed < 0) forwardSpeed = 0;
-        if (forwardSpeed < minSpeed && error > 20.0f) forwardSpeed = minSpeed;
+        // ── Apply: add correction to lagging, subtract from leading ─
+        int leftSpeed  = baseSpeed - (int)correction;
+        int rightSpeed = baseSpeed + (int)correction;
 
+        // Clamp
+        leftSpeed  = constrain(leftSpeed,  0, maxSpeed);
+        rightSpeed = constrain(rightSpeed, 0, maxSpeed);
+
+        if (PID_DEBUG_PRINTS && (now - lastPidPrint) >= PID_PRINT_INTERVAL_MS) {
+            lastPidPrint = now;
+            Serial.print(F("[PID FWD] err="));   Serial.print(steerError, 2);
+            Serial.print(F(" corr="));           Serial.print(correction, 2);
+            Serial.print(F(" base="));           Serial.print(baseSpeed);
+            Serial.print(F(" L="));              Serial.print(leftSpeed);
+            Serial.print(F(" R="));              Serial.print(rightSpeed);
+            Serial.print(F(" avgP="));           Serial.print(avgPulses);
+            Serial.print(F("/"));                Serial.println(targetPulses);
+        }
+
+        // Left motor forward
         digitalWrite(IN1, LOW);
         digitalWrite(IN2, HIGH);
-        analogWrite(ENA, forwardSpeed);
+        analogWrite(ENA, leftSpeed);
 
+        // Right motor forward
         digitalWrite(IN3, LOW);
         digitalWrite(IN4, HIGH);
-        analogWrite(ENB, forwardSpeed);
+        analogWrite(ENB, rightSpeed);
 
         delay(5);
     }
@@ -264,9 +398,13 @@ void MoveController::moveBackwardCm(int cm)
     float wheelCirc = PI_F * wheelDiameter;
     long targetPulses = (long)(((float)cm / wheelCirc) * (float)encPPR);
 
-    float integral = 0.0f;
-    float lastError = 0.0f;
+    float steerIntegral  = 0.0f;
+    float steerLastError = 0.0f;
     unsigned long lastTime = millis();
+    unsigned long lastPidPrint = 0;
+
+    long slowZonePulses = targetPulses / 4;
+    if (slowZonePulses < 10) slowZonePulses = 10;
 
     while (true) {
         noInterrupts();
@@ -278,8 +416,20 @@ void MoveController::moveBackwardCm(int cm)
         long lDelta = abs(lNow - startLeft);
         long avgPulses = (rDelta + lDelta) / 2;
 
-        float error = (float)(targetPulses - avgPulses);
-        if (error <= 0.0f) break;
+        if (avgPulses >= targetPulses) break;
+
+        // Base speed with deceleration
+        long remaining = targetPulses - avgPulses;
+        int baseSpeed;
+        if (remaining <= slowZonePulses) {
+            baseSpeed = (int)map(remaining, 0, slowZonePulses, minSpeed, maxSpeed);
+            if (baseSpeed < minSpeed) baseSpeed = minSpeed;
+        } else {
+            baseSpeed = maxSpeed;
+        }
+
+        // Steering PID — keep straight while reversing
+        float steerError = (float)(lDelta - rDelta);
 
         unsigned long now = millis();
         float dt = ((float)(now - lastTime)) / 1000.0f;
@@ -287,28 +437,41 @@ void MoveController::moveBackwardCm(int cm)
         if (dt <= 0.0f) dt = 0.001f;
         if (dt > 0.2f) dt = 0.2f;
 
-        integral += error * dt;
-        float maxIntegral = (float)maxSpeed * 2.0f;
-        if (integral > maxIntegral) integral = maxIntegral;
-        if (integral < -maxIntegral) integral = -maxIntegral;
+        steerIntegral += steerError * dt;
+        float maxI = (float)maxSpeed * 0.5f;
+        if (steerIntegral >  maxI) steerIntegral =  maxI;
+        if (steerIntegral < -maxI) steerIntegral = -maxI;
 
-        float derivative = (error - lastError) / dt;
-        lastError = error;
+        float steerDerivative = (steerError - steerLastError) / dt;
+        steerLastError = steerError;
 
-        float output = Kp * error + Ki * integral + Kd * derivative;
+        float correction = Kp * steerError + Ki * steerIntegral + Kd * steerDerivative;
 
-        int backwardSpeed = (int)output;
-        if (backwardSpeed > maxSpeed) backwardSpeed = maxSpeed;
-        if (backwardSpeed < 0) backwardSpeed = 0;
-        if (backwardSpeed < minSpeed && error > 20.0f) backwardSpeed = minSpeed;
+        int leftSpeed  = baseSpeed - (int)correction;
+        int rightSpeed = baseSpeed + (int)correction;
+        leftSpeed  = constrain(leftSpeed,  0, maxSpeed);
+        rightSpeed = constrain(rightSpeed, 0, maxSpeed);
 
+        if (PID_DEBUG_PRINTS && (now - lastPidPrint) >= PID_PRINT_INTERVAL_MS) {
+            lastPidPrint = now;
+            Serial.print(F("[PID REV] err="));   Serial.print(steerError, 2);
+            Serial.print(F(" corr="));           Serial.print(correction, 2);
+            Serial.print(F(" base="));           Serial.print(baseSpeed);
+            Serial.print(F(" L="));              Serial.print(leftSpeed);
+            Serial.print(F(" R="));              Serial.print(rightSpeed);
+            Serial.print(F(" avgP="));           Serial.print(avgPulses);
+            Serial.print(F("/"));                Serial.println(targetPulses);
+        }
+
+        // Left motor backward
         digitalWrite(IN1, HIGH);
         digitalWrite(IN2, LOW);
-        analogWrite(ENA, backwardSpeed);
+        analogWrite(ENA, leftSpeed);
 
+        // Right motor backward
         digitalWrite(IN3, HIGH);
         digitalWrite(IN4, LOW);
-        analogWrite(ENB, backwardSpeed);
+        analogWrite(ENB, rightSpeed);
 
         delay(5);
     }
@@ -340,6 +503,7 @@ void MoveController::turnRightDeg(int degrees)
     float integral = 0.0f;
     float lastError = 0.0f;
     unsigned long lastTime = millis();
+    unsigned long lastPidPrint = 0;
 
     while (true) {
         noInterrupts();
@@ -376,6 +540,15 @@ void MoveController::turnRightDeg(int degrees)
         if (turnSpeed < 0) turnSpeed = 0;
         if (turnSpeed < minSpeed && error > 20.0f) turnSpeed = minSpeed;
 
+        if (PID_DEBUG_PRINTS && (now - lastPidPrint) >= PID_PRINT_INTERVAL_MS) {
+            lastPidPrint = now;
+            Serial.print(F("[PID TR] err="));    Serial.print(error, 2);
+            Serial.print(F(" out="));            Serial.print(output, 2);
+            Serial.print(F(" spd="));            Serial.print(turnSpeed);
+            Serial.print(F(" avgP="));           Serial.print(avgPulses);
+            Serial.print(F("/"));                Serial.println(targetPulses);
+        }
+
         // Left motor forward
         digitalWrite(IN1, LOW);
         digitalWrite(IN2, HIGH);
@@ -408,6 +581,7 @@ void MoveController::turnLeftDeg(int degrees)
     float integral = 0.0f;
     float lastError = 0.0f;
     unsigned long lastTime = millis();
+    unsigned long lastPidPrint = 0;
 
     while (true) {
         noInterrupts();
@@ -443,6 +617,15 @@ void MoveController::turnLeftDeg(int degrees)
         if (turnSpeed > maxSpeed) turnSpeed = maxSpeed;
         if (turnSpeed < 0) turnSpeed = 0;
         if (turnSpeed < minSpeed && error > 20.0f) turnSpeed = minSpeed;
+
+        if (PID_DEBUG_PRINTS && (now - lastPidPrint) >= PID_PRINT_INTERVAL_MS) {
+            lastPidPrint = now;
+            Serial.print(F("[PID TL] err="));    Serial.print(error, 2);
+            Serial.print(F(" out="));            Serial.print(output, 2);
+            Serial.print(F(" spd="));            Serial.print(turnSpeed);
+            Serial.print(F(" avgP="));           Serial.print(avgPulses);
+            Serial.print(F("/"));                Serial.println(targetPulses);
+        }
 
         // Left motor backward
         digitalWrite(IN1, HIGH);

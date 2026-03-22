@@ -27,6 +27,9 @@ void StateMachine::update()
     // Let SensorManager poll only the currently-enabled sensors
     sensors_.update();
 
+    // Non-blocking PID steering — called every loop for continuous correction
+    robot_.updateSteering();
+
     switch (phase_)
     {
     case RobotPhase::IDLE:
@@ -128,8 +131,8 @@ void StateMachine::updateBoxFinding()
     {
         Serial.println(F("[BoxFind] Entered — scanning forward for boxes"));
         resetScanSequence();
-        // Start driving forward at scanning speed
-        robot_.setMotorSpeedsPWM(SCAN_FORWARD_PWM, SCAN_FORWARD_PWM);
+        // Start driving forward with PID straight-line correction
+        robot_.driveStraight(SCAN_FORWARD_PWM);
     }
 
     // Average encoder distance travelled since phase entry

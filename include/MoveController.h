@@ -13,6 +13,16 @@ private:
   int maxSpeed, minSpeed;
   float Kp, Ki, Kd;
 
+  // ── Non-blocking PID steering state ─────────────────────
+  bool  pidActive_        = false;   // true when driveStraight() is active
+  int   pidBasePWM_       = 0;       // requested base speed
+  long  pidStartLeft_     = 0;       // encoder snapshot at driveStraight() call
+  long  pidStartRight_    = 0;
+  float pidSteerIntegral_ = 0.0f;
+  float pidSteerLastErr_  = 0.0f;
+  unsigned long pidLastMs_     = 0;
+  unsigned long pidLastPrint_  = 0;
+
 public:
   // Pulse counters — updated by ISR, read from anywhere.
   // Must be volatile because ISRs modify them asynchronously.
@@ -26,8 +36,6 @@ public:
   void begin();
 
   // Attach hardware interrupts on encoder channel-A pins.
-  // Must be called once from setup() after begin().
-  // rightA / leftA must be interrupt-capable pins (Mega: 2,3,18,19,20,21).
   void configureEncoders(int rightA, int rightB, int leftA, int leftB);
 
   // Public accessors for ISR to read channel-B pins
@@ -42,11 +50,20 @@ public:
   float getRightDistanceCm() const;
 
   void setPID(float Kp_, float Ki_, float Kd_);
+
+  // ── Non-blocking continuous drive with PID ──────────────
+  // Call driveStraight() once to start, then call updateSteering()
+  // every loop iteration. PID correction keeps the robot straight.
+  // Call stop() to end.
+  void driveStraight(int basePWM);    // Start driving with PID
+  void updateSteering();              // Call every loop — applies PID correction
+  bool isPidActive() const { return pidActive_; }
+
+  // ── Blocking distance-based moves (PID built-in) ────────
   void moveForwardCm(int cm);
   void moveBackwardCm(int cm);
 
   // In-place pivot turns using encoder feedback + PID.
-  // Left wheel and right wheel spin in opposite directions.
   void turnRightDeg(int degrees);
   void turnLeftDeg(int degrees);
 
