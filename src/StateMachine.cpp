@@ -3,6 +3,7 @@
 #include "MoveController.h"
 #include "gripper_arm.h"
 #include "armSlider.h"
+#include "line_following.h"
 
 // ─────────────────────────────────────────────────────────────
 //  Construction
@@ -102,8 +103,8 @@ void StateMachine::configureSensors(RobotPhase phase)
 
     case RobotPhase::PATH_FINDING:
         sensors_.enableEncoders(true);
-        sensors_.enableTofLeft(true);
         sensors_.enableTofFront(true);
+        // IR array enabled later in FIND_LINE sub-step to avoid overhead
         break;
 
     case RobotPhase::LINE_FOLLOWING:
@@ -397,19 +398,83 @@ void StateMachine::updateBoxLifting()
 }
 
 // ═════════════════════════════════════════════════════════════
-//  PHASE 3 — PATH FINDING  (stub)
+//  PHASE 3 — PATH FINDING  (go to the line following start zone)
+//
+//  Sub-steps:
+//    APPROACH_WALL — drive forward until front ToF ≤ 10 cm
+//    TURN_LEFT     — turn left 90° (blocking)
+//    FIND_LINE     — drive forward until white line detected
 // ═════════════════════════════════════════════════════════════
 void StateMachine::updatePathFinding()
 {
     if (phaseJustEntered_)
     {
-        Serial.println(F("[PathFind] Entered — navigation logic TBD"));
+        pathStep_ = PathStep::APPROACH_WALL;
+        pathLastPrintMs_ = 0;
+        Serial.println(F("[PathFind] Entered — approaching front wall"));
+        robot_.driveStraight(SCAN_FORWARD_PWM);
     }
 
-    // TODO: Implement navigation to next section.
-    //       Uses encoders + ToF sensors.
-    //       When destination reached:
-    //       transitionTo(RobotPhase::LINE_FOLLOWING);
+    unsigned long now = millis();
+
+    switch (pathStep_)
+    {
+    // ── Step 1: Drive toward front wall until ToF ≤ 10 cm ────
+    case PathStep::APPROACH_WALL:
+    {
+        int frontTof = sensors_.getFrontTof();
+
+        // Debug print every 500 ms
+        if ((now - pathLastPrintMs_) >= 500UL)
+        {
+            pathLastPrintMs_ = now;
+            Serial.print(F("[PathFind] APPROACH front="));
+            Serial.print(frontTof);
+            Serial.println(F(" mm"));
+        }
+
+        if (frontTof > 0 && frontTof <= WALL_STOP_DISTANCE_MM)
+        {
+            robot_.stop();
+            Serial.println(F("[PathFind] Wall reached — turning left"));
+            pathStep_ = PathStep::TURN_LEFT;
+        }
+        break;
+    }
+
+    // ── Step 2: Turn left 90° (blocking) ────────────────────
+    case PathStep::TURN_LEFT:
+    {
+        robot_.turnLeftDeg(90);
+        robot_.stop();
+        Serial.println(F("[PathFind] Turned left — searching for line"));
+
+        // Enable IR array for line detection (already calibrated at boot)
+        sensors_.enableIrArray(true);
+
+        robot_.driveStraight(SCAN_FORWARD_PWM);
+        pathStep_ = PathStep::FIND_LINE;
+        pathLastPrintMs_ = millis();
+        break;
+    }
+
+    case PathStep::FIND_LINE:
+    {
+        if ((now - pathLastPrintMs_) >= 500UL)
+        {
+            pathLastPrintMs_ = now;
+            Serial.println(F("[PathFind] FIND_LINE — searching..."));
+        }
+
+        if (isOnLine())
+        {
+            robot_.stop();
+            Serial.println(F("[PathFind] Line found — transitioning to LINE_FOLLOWING"));
+            transitionTo(RobotPhase::LINE_FOLLOWING);
+        }
+        break;
+    }
+    }
 }
 
 // ═════════════════════════════════════════════════════════════

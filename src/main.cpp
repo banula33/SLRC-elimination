@@ -8,6 +8,7 @@
 #include "gripper_arm.h"
 #include "armSlider.h"
 #include "RobotTests.h"
+#include "line_following.h"
 
 // ─────────────────────────────────────────────────────────────
 //  ★  TESTING MODE FLAG
@@ -181,6 +182,13 @@ void setup()
 
     // Initialise horizontal slider (pins already configured above)
     initArmSlider();
+
+    // Initialise line-following sensor array (QTR-RC pins)
+    initLineSensors();
+
+    // Calibrate line sensors — move robot by hand over BOTH
+    // the line colour and background during this 5-second window.
+    calibrateLineSensors(5000);
 
     if (TESTING_MODE)
     {

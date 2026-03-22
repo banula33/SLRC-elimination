@@ -93,6 +93,19 @@ private:
     uint8_t boxesLoaded_ = 0;
     unsigned long liftStepStartMs_ = 0;
 
+    // ── Path-finding sub-state machine ─────────────────────
+    enum class PathStep : uint8_t
+    {
+        APPROACH_WALL,  // Drive forward until front ToF ≤ 10 cm
+        TURN_LEFT,      // Turn left 90° (blocking)
+        FIND_LINE,      // Drive forward until white line detected
+    };
+
+    PathStep pathStep_ = PathStep::APPROACH_WALL;
+    unsigned long pathLastPrintMs_ = 0;
+
+    static constexpr int WALL_STOP_DISTANCE_MM = 100; // 10 cm
+
     // ── Core references ────────────────────────────────────
     SensorManager &sensors_;
     MoveController &robot_;
