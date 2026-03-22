@@ -113,6 +113,20 @@ private:
 
     static constexpr int WALL_STOP_DISTANCE_MM = 100; // 10 cm
 
+    // ── Line-following sub-state machine ───────────────────
+    // PID gains for line following (tune on the field)
+    static constexpr float LF_KP = 0.06f;  // proportional
+    static constexpr float LF_KD = 0.08f;  // derivative
+    static constexpr int   LF_BASE_PWM = 80; // base forward speed
+
+    // How many consecutive loops must see a full white bar
+    // before we accept it as the stop zone (debounce)
+    static constexpr uint8_t LF_FULL_BAR_CONFIRM = 5;
+
+    int32_t lfLastError_       = 0;    // PID last error
+    uint8_t lfFullBarCount_    = 0;    // debounce counter
+    unsigned long lfLastPrintMs_ = 0;  // debug print throttle
+
     // ── Core references ────────────────────────────────────
     SensorManager &sensors_;
     MoveController &robot_;

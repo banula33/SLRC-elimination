@@ -47,5 +47,14 @@ uint16_t readLinePosition(uint16_t *sensorValues = nullptr);
 // Returns true if any sensor detects the line.
 bool isOnLine();
 
+// Returns true when ALL sensors see the line simultaneously —
+// indicates a full horizontal white bar crossing the path.
+// Use to detect the stop zone at end of line-follow run.
+bool isFullWhiteBar();
+
+// Read raw calibrated values into a caller-supplied array[8].
+// Returns false if not calibrated.
+bool readLineSensorRaw(uint16_t *out);
+
 // Print calibration min/max summary to Serial.
 void printLineSensorCalibration();

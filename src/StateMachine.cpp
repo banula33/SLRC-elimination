@@ -17,7 +17,7 @@ StateMachine::StateMachine(SensorManager &sensors,
 // ─────────────────────────────────────────────────────────────
 void StateMachine::begin()
 {
-    transitionTo(RobotPhase::LINE_FOLLOWING);
+    transitionTo(RobotPhase::INITIAL_POSITIONING);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -531,22 +531,79 @@ void StateMachine::updatePathFinding()
 
 // ═════════════════════════════════════════════════════════════
 //  PHASE 4 — LINE FOLLOWING
+//
+//  Map layout:
+//    1. Straight section
+//    2. Left turn (PID naturally handles it while tracking the line)
+//    3. Solid horizontal white bar = stop zone → BOX_INSERTION
+//
+//  PD controller: error = position - LINE_CENTER_POSITION
+//    correction = Kp * error + Kd * (error - lastError)
+//    leftPWM  = base - correction
+//    rightPWM = base + correction
 // ═════════════════════════════════════════════════════════════
 void StateMachine::updateLineFollowing()
 {
     if (phaseJustEntered_)
     {
-        Serial.println(F("[LineFol] Entered — following line to insertion zone"));
+        Serial.println(F("[LineFol] Entered — PID line following"));
+        lfLastError_    = 0;
+        lfFullBarCount_ = 0;
+        lfLastPrintMs_  = 0;
     }
 
-    // ── Read sensors ──────────────────────────────────────
-    // const uint8_t *ir = sensors_.getIrArray();
-    // int frontTof       = sensors_.getFrontTof();
+    unsigned long now = millis();
 
-    // TODO: PID line-following using IR array
-    //       Stop condition: frontTof < THRESHOLD_MM
-    //       When arrived:
-    //       transitionTo(RobotPhase::BOX_INSERTION);
+    // ── 1. Check for full horizontal white bar (stop zone) ─────
+    if (isFullWhiteBar())
+    {
+        lfFullBarCount_++;
+        if (lfFullBarCount_ >= LF_FULL_BAR_CONFIRM)
+        {
+            robot_.stop();
+            Serial.println(F("[LineFol] Full white bar detected — stop zone reached"));
+            transitionTo(RobotPhase::BOX_INSERTION);
+            return;
+        }
+    }
+    else
+    {
+        lfFullBarCount_ = 0; // reset debounce if partial reading
+    }
+
+    // ── 2. PD steering to follow the line ──────────────────────
+    uint16_t pos = readLinePosition();
+    int32_t error = (int32_t)pos - LINE_CENTER_POSITION;
+
+    // Derivative term
+    int32_t derivative = error - lfLastError_;
+    lfLastError_ = error;
+
+    // Compute correction
+    int correction = (int)(LF_KP * (float)error + LF_KD * (float)derivative);
+
+    // Apply: base ± correction
+    int leftPWM  = LF_BASE_PWM - correction;
+    int rightPWM = LF_BASE_PWM + correction;
+    leftPWM  = constrain(leftPWM,  0, 255);
+    rightPWM = constrain(rightPWM, 0, 255);
+
+    // Drive motors forward directly
+    // (driveStraight() would fight against the line PID,
+    //  so we set motor PWM directly here)
+    robot_.setMotorSpeedsPWM(leftPWM, rightPWM);
+
+    // ── 3. Debug print every 250 ms ────────────────────────────
+    if ((now - lfLastPrintMs_) >= 250UL)
+    {
+        lfLastPrintMs_ = now;
+        Serial.print(F("[LineFol] pos="));  Serial.print(pos);
+        Serial.print(F(" err="));           Serial.print(error);
+        Serial.print(F(" corr="));          Serial.print(correction);
+        Serial.print(F(" L="));             Serial.print(leftPWM);
+        Serial.print(F(" R="));             Serial.print(rightPWM);
+        Serial.print(F(" bar="));           Serial.println(lfFullBarCount_);
+    }
 }
 
 // ═════════════════════════════════════════════════════════════

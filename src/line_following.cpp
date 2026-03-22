@@ -93,6 +93,39 @@ bool isOnLine()
     return false;
 }
 
+// ── Full white bar detection ───────────────────────────────────
+// Returns true when ALL sensors are seeing the line colour.
+// This means the robot is on a solid horizontal white/black section.
+bool isFullWhiteBar()
+{
+    if (!calibrated_) return false;
+
+    qtr.readCalibrated(sensorBuf_);
+
+    for (uint8_t i = 0; i < LINE_SENSOR_COUNT; i++)
+    {
+        if (LINE_IS_WHITE)
+        {
+            if (sensorBuf_[i] <= LINE_DETECT_THRESHOLD)
+                return false; // this sensor is NOT on the white bar
+        }
+        else
+        {
+            if (sensorBuf_[i] >= (1000 - LINE_DETECT_THRESHOLD))
+                return false; // this sensor is NOT on the black bar
+        }
+    }
+    return true; // all sensors triggered
+}
+
+// ── Raw calibrated read ───────────────────────────────────────
+bool readLineSensorRaw(uint16_t *out)
+{
+    if (!calibrated_ || !out) return false;
+    qtr.readCalibrated(out);
+    return true;
+}
+
 // ── Print calibration summary ─────────────────────────────────
 void printLineSensorCalibration()
 {
@@ -108,4 +141,5 @@ void printLineSensorCalibration()
     }
     Serial.print(F("  Mode: "));
     Serial.println(LINE_IS_WHITE ? F("WHITE line on dark bg") : F("BLACK line on light bg"));
+
 }
