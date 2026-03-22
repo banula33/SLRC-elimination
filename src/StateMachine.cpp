@@ -83,7 +83,7 @@ void StateMachine::configureSensors(RobotPhase phase)
     case RobotPhase::BOX_FINDING:
         sensors_.enableEncoders(true);
         sensors_.enableTofLeft(true);
-        sensors_.enableTofFront(true);
+        // Front ToF not needed — saves ~33ms per loop
         break;
 
     case RobotPhase::BOX_LIFTING:

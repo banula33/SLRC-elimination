@@ -5,6 +5,12 @@
 #include <Adafruit_VL53L0X.h>
 #include <Wire.h>
 
+// ─────────────────────────────────────────────────────────────
+//  ToFArray — three VL53L0X sensors, each with a unique I2C
+//  address assigned at init. Sensors stay powered on;
+//  reads are fast (~33 ms per sensor, no re-init overhead).
+// ─────────────────────────────────────────────────────────────
+
 class ToFArray {
 public:
   struct Readings {
@@ -22,8 +28,10 @@ public:
     int16_t frontOffsetMm = 25
   );
 
+  // Assign unique I2C addresses and keep all sensors active.
   bool begin();
 
+  // Fast reads — no shutdown/re-init, just rangingTest().
   int readLeftMm();
   int readRightMm();
   int readFrontMm();
@@ -32,11 +40,7 @@ public:
   void setOffsetsMm(int16_t leftOffsetMm, int16_t rightOffsetMm, int16_t frontOffsetMm);
 
 private:
-  int readDistanceMm(uint8_t xshutPin);
   int applyOffsetMm(int distanceMm, int16_t offsetMm);
-
-  void shutdownAll();
-  bool initSensor(uint8_t xshutPin);
 
   uint8_t leftXshutPin_;
   uint8_t rightXshutPin_;
@@ -46,7 +50,19 @@ private:
   int16_t rightOffsetMm_;
   int16_t frontOffsetMm_;
 
-  Adafruit_VL53L0X sensor_;
+  // One sensor object per physical sensor (each has a unique address)
+  Adafruit_VL53L0X sensorLeft_;
+  Adafruit_VL53L0X sensorRight_;
+  Adafruit_VL53L0X sensorFront_;
+
+  bool leftOk_  = false;
+  bool rightOk_ = false;
+  bool frontOk_ = false;
+
+  // Unique I2C addresses for each sensor
+  static constexpr uint8_t ADDR_LEFT  = 0x30;
+  static constexpr uint8_t ADDR_RIGHT = 0x31;
+  static constexpr uint8_t ADDR_FRONT = 0x32;
 };
 
 #endif // TOF_ARRAY_H
