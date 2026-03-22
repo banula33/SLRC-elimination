@@ -130,10 +130,12 @@ void StateMachine::updateInitialPositioning()
     if (phaseJustEntered_)
     {
         Serial.println(F("[InitPos] Moving forward 30 cm"));
-        robot_.moveForwardCm(30);
+        robot_.moveForwardCm(35);
+        delay(2000);
 
         Serial.println(F("[InitPos] Turning left 90 deg"));
         robot_.turnLeftDeg(90);
+        delay(2000);
 
         Serial.println(F("[InitPos] Done — starting box finding"));
         transitionTo(RobotPhase::BOX_FINDING);
@@ -382,7 +384,7 @@ void StateMachine::updateBoxLifting()
         Serial.print(F("  [Lift] Box stored. Total loaded: "));
         Serial.println(boxesLoaded_);
 
-        const uint8_t TOTAL_BOXES = 3;
+        const uint8_t TOTAL_BOXES = 2;
         if (boxesLoaded_ < TOTAL_BOXES)
         {
             transitionTo(RobotPhase::BOX_FINDING);

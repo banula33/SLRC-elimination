@@ -15,7 +15,7 @@ static uint8_t _rightEncB_pin = 0;
 static uint8_t _leftEncA_pin  = 0;
 static uint8_t _leftEncB_pin  = 0;
 
-static constexpr bool PID_DEBUG_PRINTS = true;
+static constexpr bool PID_DEBUG_PRINTS = false;
 static constexpr unsigned long PID_PRINT_INTERVAL_MS = 100UL;
 
 static void isrRightA()
