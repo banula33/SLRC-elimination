@@ -18,7 +18,8 @@
 // ── Available tests ───────────────────────────────────────────
 enum class RobotTest : uint8_t
 {
-    MOVE_FORWARD_10CM,     // Drive straight 10 cm and stop
+    MOVE_FORWARD_15CM,     // Drive straight 15 cm and stop
+    MOVE_FORWARD_90CM,     // Drive straight 90 cm and stop
     TURN_RIGHT_90DEG,      // In-place right turn 90°
     ENCODER_VERIFY,        // Print encoder ticks + distance every second (30 s)
 

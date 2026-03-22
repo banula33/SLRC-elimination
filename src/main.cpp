@@ -24,7 +24,7 @@ static constexpr bool TESTING_MODE = true;
 //     When done, set RUN_ROBOT_TEST back to false.
 // ─────────────────────────────────────────────────────────────
 static constexpr bool       RUN_ROBOT_TEST = true;
-static constexpr RobotTest  ACTIVE_TEST    = RobotTest::ENCODER_VERIFY;
+static constexpr RobotTest  ACTIVE_TEST    = RobotTest::MOVE_FORWARD_90CM;
 
 // ─────────────────────────────────────────────────────────────
 //  Hardware instances

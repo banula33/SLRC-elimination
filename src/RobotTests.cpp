@@ -5,13 +5,21 @@
 //  Test implementations
 // ─────────────────────────────────────────────────────────────
 
-// ── MOVE_FORWARD_10CM ─────────────────────────────────────────
-// Drive straight forward 10 cm using encoder-based control,
+// ── MOVE_FORWARD_15CM ─────────────────────────────────────────
+// Drive straight forward 15 cm using encoder-based control,
 // then stop.
-static void test_moveForward10cm(MoveController &robot)
+static void test_moveForward15cm(MoveController &robot)
 {
-    Serial.println(F("[Test] MOVE_FORWARD_10CM — driving 10 cm"));
-    robot.moveForwardCm(10);
+    Serial.println(F("[Test] MOVE_FORWARD_15CM — driving 15 cm"));
+    robot.moveForwardCm(15);
+    robot.stop();
+    Serial.println(F("[Test] Done — robot stopped"));
+}
+
+static void test_moveForward90cm(MoveController &robot)
+{
+    Serial.println(F("[Test] MOVE_FORWARD_90CM — driving 90 cm"));
+    robot.moveForwardCm(90);
     robot.stop();
     Serial.println(F("[Test] Done — robot stopped"));
 }
@@ -113,8 +121,12 @@ void runRobotTest(RobotTest test, MoveController &robot)
 
     switch (test)
     {
-    case RobotTest::MOVE_FORWARD_10CM:
-        test_moveForward10cm(robot);
+    case RobotTest::MOVE_FORWARD_15CM:
+        test_moveForward15cm(robot);
+        break;
+
+    case RobotTest::MOVE_FORWARD_90CM:
+        test_moveForward90cm(robot);
         break;
 
     case RobotTest::TURN_RIGHT_90DEG:
