@@ -55,6 +55,7 @@ private:
     // ── Box-finding sub-state machine ──────────────────────
     enum class ScanStep : uint8_t
     {
+        CALIBRATING, // Measure baseline for 2s
         SCANNING,    // Driving forward, watching for a ToF drop
         CONFIRMING,  // Drop seen — verifying it persists over 5 cm
         POSITIONING, // Confirmed — advancing the final 1 cm
@@ -64,6 +65,12 @@ private:
 
     ScanStep scanStep_ = ScanStep::SCANNING;
     int scanBaseTof_ = -1;              // Stable ToF reading before drop (mm)
+    
+    // Calibration state
+    long calibrationSum_ = 0;
+    int calibrationCount_ = 0;
+    unsigned long calibrationStartMs_ = 0;
+
     float scanDropEncCm_ = 0.0f;        // Encoder position when drop first seen (cm)
     float scanEncStart_ = 0.0f;         // Encoder position at phase entry (cm)
     unsigned long scanLastPrintMs_ = 0; // Debug print throttle
@@ -72,7 +79,7 @@ private:
     static constexpr int SCAN_DROP_MM = 70;        // 7 cm drop triggers detection
     static constexpr float SCAN_CONFIRM_CM = 8.0f; // hold drop for 8 cm to confirm
     static constexpr float SCAN_EXTRA_CM = 1.0f;   // advance 1 cm after confirmation
-    static constexpr int SCAN_FORWARD_PWM = 70;
+    static constexpr int SCAN_FORWARD_PWM = 60;
 
     // ── Box-lifting sub-state machine ──────────────────────
     enum class LiftStep : uint8_t

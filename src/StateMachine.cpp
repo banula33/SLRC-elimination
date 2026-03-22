@@ -144,6 +144,8 @@ void StateMachine::updateInitialPositioning()
         robot_.turnLeftDeg(90);
         delay(2000);
 
+        robot_.moveForwardCm(15);
+
         Serial.println(F("[InitPos] Done — starting box finding"));
         transitionTo(RobotPhase::BOX_FINDING);
     }
@@ -154,21 +156,28 @@ void StateMachine::updateInitialPositioning()
 // ═════════════════════════════════════════════════════════════
 void StateMachine::resetScanSequence()
 {
-    scanStep_ = ScanStep::SCANNING;
+    scanStep_ = ScanStep::CALIBRATING;
     scanBaseTof_ = -1;
+    calibrationSum_ = 0;
+    calibrationCount_ = 0;
+    calibrationStartMs_ = millis();
+
     scanDropEncCm_ = 0.0f;
-    // snapshot current encoder position as the phase start reference
+    // snapshot current encoder position as Phase Start reference
+    // (Actual travel distance will be calculated relative to this, 
+    // but the movement starts only after calibration)
     scanEncStart_ = (sensors_.getLeftEncoderCm() + sensors_.getRightEncoderCm()) * 0.5f;
+    
+    // Ensure stationary during calibration
+    robot_.stop();
 }
 
 void StateMachine::updateBoxFinding()
 {
     if (phaseJustEntered_)
     {
-        Serial.println(F("[BoxFind] Entered — scanning forward for boxes"));
+        Serial.println(F("[BoxFind] Entered — calibrating baseline (2s)..."));
         resetScanSequence();
-        // Start driving forward with PID straight-line correction
-        robot_.driveStraight(SCAN_FORWARD_PWM);
     }
 
     // Average encoder distance travelled since phase entry
@@ -178,7 +187,7 @@ void StateMachine::updateBoxFinding()
     // Current left ToF (updated by SensorManager on interval)
     int leftTof = sensors_.getLeftTof();
 
-    // ── Periodic debug print (every 1 s) ──────────────────
+    // ── Periodic debug print (every 0.4 s) ────────────────
     unsigned long now = millis();
     if ((now - scanLastPrintMs_) >= 400UL)
     {
@@ -192,44 +201,74 @@ void StateMachine::updateBoxFinding()
         Serial.print(F("mm  dist="));
         Serial.print(travelled, 1);
         Serial.print(F("cm  state="));
-        Serial.println(
-            scanStep_ == ScanStep::SCANNING ? F("SCANNING") : scanStep_ == ScanStep::CONFIRMING ? F("CONFIRMING")
-                                                                                                : F("POSITIONING"));
+        switch (scanStep_) {
+            case ScanStep::CALIBRATING: Serial.println(F("CALIBRATING")); break;
+            case ScanStep::SCANNING:    Serial.println(F("SCANNING")); break;
+            case ScanStep::CONFIRMING:  Serial.println(F("CONFIRMING")); break;
+            case ScanStep::POSITIONING: Serial.println(F("POSITIONING")); break;
+        }
     }
 
     switch (scanStep_)
     {
-    // ── SCANNING: drive forward and watch for a drop ──────
-    case ScanStep::SCANNING:
+    // ── CALIBRATING: Measure average wall distance for 2s —
+    case ScanStep::CALIBRATING:
     {
-        // Only update baseline when we have a valid, stable reading
         if (leftTof > 0)
         {
-            if (scanBaseTof_ < 0)
+            calibrationSum_ += leftTof;
+            calibrationCount_++;
+        }
+
+        if ((millis() - calibrationStartMs_) >= 2000UL)
+        {
+            if (calibrationCount_ > 0)
             {
-                // First valid reading — initialise baseline
-                scanBaseTof_ = leftTof;
+                scanBaseTof_ = (int)(calibrationSum_ / calibrationCount_);
+                Serial.print(F("[BoxFind] Calibration done. Samples="));
+                Serial.print(calibrationCount_);
+                Serial.print(F(" AvgBase="));
+                Serial.println(scanBaseTof_);
             }
             else
             {
-                int drop = scanBaseTof_ - leftTof;
-                if (drop >= SCAN_DROP_MM)
-                {
-                    // Sudden reduction detected — record encoder position and move to confirm
-                    scanDropEncCm_ = encNow;
-                    scanStep_ = ScanStep::CONFIRMING;
-                    Serial.print(F("[BoxFind] Drop detected at tof="));
-                    Serial.print(leftTof);
-                    Serial.print(F("mm (base="));
-                    Serial.print(scanBaseTof_);
-                    Serial.println(F("mm) — confirming"));
-                }
-                else
-                {
-                    // No drop: keep updating baseline (slow drift OK, sudden jump = box)
-                    // Use a gentle low-pass so baseline doesn't chase a real box
-                    scanBaseTof_ = (scanBaseTof_ * 3 + leftTof) / 4;
-                }
+                Serial.println(F("[BoxFind] Calibration failed (no valid readings). Default=300mm"));
+                scanBaseTof_ = 300;
+            }
+            
+            // Reset travel origin so "travelled" counts from here
+            scanEncStart_ = (sensors_.getLeftEncoderCm() + sensors_.getRightEncoderCm()) * 0.5f;
+            
+            Serial.println(F("[BoxFind] Starting SCANNING move..."));
+            scanStep_ = ScanStep::SCANNING;
+            robot_.driveStraight(SCAN_FORWARD_PWM);
+        }
+        break;
+    }
+
+    // ── SCANNING: drive forward and watch for a drop ──────
+    case ScanStep::SCANNING:
+    {
+        // Require valid reading
+        if (leftTof > 0 && scanBaseTof_ > 0)
+        {
+            int drop = scanBaseTof_ - leftTof;
+            if (drop >= SCAN_DROP_MM)
+            {
+                // Sudden reduction detected — record encoder position and move to confirm
+                scanDropEncCm_ = encNow;
+                scanStep_ = ScanStep::CONFIRMING;
+                Serial.print(F("[BoxFind] Drop detected at tof="));
+                Serial.print(leftTof);
+                Serial.print(F("mm (base="));
+                Serial.print(scanBaseTof_);
+                Serial.println(F("mm) — confirming"));
+            }
+            else
+            {
+                // No drop: keep updating baseline (slow drift OK, sudden jump = box)
+                // Use a gentle low-pass so baseline doesn't chase a real box
+                scanBaseTof_ = (scanBaseTof_ * 3 + leftTof) / 4;
             }
         }
         break;
