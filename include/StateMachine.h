@@ -11,12 +11,13 @@ class MoveController;
 // ─────────────────────────────────────────────────────────────
 enum class RobotPhase : uint8_t
 {
-    IDLE,           // Power-on default / all work complete
-    BOX_FINDING,    // Phase 1 — locate boxes using encoders + ToF
-    BOX_LIFTING,    // Phase 2 — pick & stack boxes (no sensors)
-    PATH_FINDING,   // Phase 3 — navigate to next section
-    LINE_FOLLOWING, // Phase 4 — IR line-follow to insertion zone
-    BOX_INSERTION   // Phase 5 — insert boxes into hole
+    IDLE,                 // Power-on default / all work complete
+    INITIAL_POSITIONING,  // Phase 0 — move 30cm fwd + turn left 90°
+    BOX_FINDING,          // Phase 1 — locate boxes using encoders + ToF
+    BOX_LIFTING,          // Phase 2 — pick & stack boxes (no sensors)
+    PATH_FINDING,         // Phase 3 — navigate to next section
+    LINE_FOLLOWING,       // Phase 4 — IR line-follow to insertion zone
+    BOX_INSERTION         // Phase 5 — insert boxes into hole
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -44,6 +45,7 @@ private:
     void configureSensors(RobotPhase phase);
 
     // Phase handlers
+    void updateInitialPositioning();
     void updateBoxFinding();
     void updateBoxLifting();
     void updatePathFinding();

@@ -16,7 +16,7 @@ StateMachine::StateMachine(SensorManager &sensors,
 // ─────────────────────────────────────────────────────────────
 void StateMachine::begin()
 {
-    transitionTo(RobotPhase::BOX_FINDING);
+    transitionTo(RobotPhase::INITIAL_POSITIONING);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -34,6 +34,9 @@ void StateMachine::update()
     {
     case RobotPhase::IDLE:
         break; // nothing to do
+    case RobotPhase::INITIAL_POSITIONING:
+        updateInitialPositioning();
+        break;
     case RobotPhase::BOX_FINDING:
         updateBoxFinding();
         break;
@@ -83,6 +86,10 @@ void StateMachine::configureSensors(RobotPhase phase)
 
     switch (phase)
     {
+    case RobotPhase::INITIAL_POSITIONING:
+        sensors_.enableEncoders(true);
+        break;
+
     case RobotPhase::BOX_FINDING:
         sensors_.enableEncoders(true);
         sensors_.enableTofLeft(true);
@@ -110,6 +117,25 @@ void StateMachine::configureSensors(RobotPhase phase)
 
     case RobotPhase::IDLE:
         break;
+    }
+}
+
+// ═════════════════════════════════════════════════════════════
+//  PHASE 0 — INITIAL POSITIONING
+//  Move 30 cm forward, turn left 90°, then proceed to box finding.
+// ═════════════════════════════════════════════════════════════
+void StateMachine::updateInitialPositioning()
+{
+    if (phaseJustEntered_)
+    {
+        Serial.println(F("[InitPos] Moving forward 30 cm"));
+        robot_.moveForwardCm(30);
+
+        Serial.println(F("[InitPos] Turning left 90 deg"));
+        robot_.turnLeftDeg(90);
+
+        Serial.println(F("[InitPos] Done — starting box finding"));
+        transitionTo(RobotPhase::BOX_FINDING);
     }
 }
 
