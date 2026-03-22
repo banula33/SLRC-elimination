@@ -29,12 +29,23 @@ void StateMachine::update()
 
     switch (phase_)
     {
-    case RobotPhase::IDLE:           break; // nothing to do
-    case RobotPhase::BOX_FINDING:    updateBoxFinding();    break;
-    case RobotPhase::BOX_LIFTING:    updateBoxLifting();    break;
-    case RobotPhase::PATH_FINDING:   updatePathFinding();   break;
-    case RobotPhase::LINE_FOLLOWING: updateLineFollowing(); break;
-    case RobotPhase::BOX_INSERTION:  updateBoxInsertion();  break;
+    case RobotPhase::IDLE:
+        break; // nothing to do
+    case RobotPhase::BOX_FINDING:
+        updateBoxFinding();
+        break;
+    case RobotPhase::BOX_LIFTING:
+        updateBoxLifting();
+        break;
+    case RobotPhase::PATH_FINDING:
+        updatePathFinding();
+        break;
+    case RobotPhase::LINE_FOLLOWING:
+        updateLineFollowing();
+        break;
+    case RobotPhase::BOX_INSERTION:
+        updateBoxInsertion();
+        break;
     }
 
     phaseJustEntered_ = false;
@@ -104,11 +115,11 @@ void StateMachine::configureSensors(RobotPhase phase)
 // ═════════════════════════════════════════════════════════════
 void StateMachine::resetScanSequence()
 {
-    scanStep_      = ScanStep::SCANNING;
-    scanBaseTof_   = -1;
+    scanStep_ = ScanStep::SCANNING;
+    scanBaseTof_ = -1;
     scanDropEncCm_ = 0.0f;
     // snapshot current encoder position as the phase start reference
-    scanEncStart_  = (sensors_.getLeftEncoderCm() + sensors_.getRightEncoderCm()) * 0.5f;
+    scanEncStart_ = (sensors_.getLeftEncoderCm() + sensors_.getRightEncoderCm()) * 0.5f;
 }
 
 void StateMachine::updateBoxFinding()
@@ -130,10 +141,12 @@ void StateMachine::updateBoxFinding()
 
     // ── Periodic debug print (every 1 s) ──────────────────
     unsigned long now = millis();
-    if ((now - scanLastPrintMs_) >= 1000UL)
+    if ((now - scanLastPrintMs_) >= 400UL)
     {
         scanLastPrintMs_ = now;
-        Serial.print(F("[BoxFind] tof="));
+        Serial.print(F("[BoxFind] time="));
+        Serial.print(now);
+        Serial.print(F(" tof="));
         Serial.print(leftTof);
         Serial.print(F("mm  base="));
         Serial.print(scanBaseTof_);
@@ -141,9 +154,8 @@ void StateMachine::updateBoxFinding()
         Serial.print(travelled, 1);
         Serial.print(F("cm  state="));
         Serial.println(
-            scanStep_ == ScanStep::SCANNING    ? F("SCANNING") :
-            scanStep_ == ScanStep::CONFIRMING  ? F("CONFIRMING") :
-                                                  F("POSITIONING"));
+            scanStep_ == ScanStep::SCANNING ? F("SCANNING") : scanStep_ == ScanStep::CONFIRMING ? F("CONFIRMING")
+                                                                                                : F("POSITIONING"));
     }
 
     switch (scanStep_)
@@ -196,7 +208,7 @@ void StateMachine::updateBoxFinding()
             {
                 // Drop disappeared — false alarm, go back to scanning
                 Serial.println(F("[BoxFind] Drop lost — false alarm, resuming scan"));
-                scanBaseTof_ = leftTof;  // reset baseline to current
+                scanBaseTof_ = leftTof; // reset baseline to current
                 scanStep_ = ScanStep::SCANNING;
                 break;
             }
@@ -239,16 +251,20 @@ static float slotPositionCm(uint8_t boxesLoaded)
 {
     switch (boxesLoaded)
     {
-    case 0:  return 16.0f;
-    case 1:  return 12.0f;
-    case 2:  return  7.0f;
-    default: return  7.0f; // clamp to last slot if more boxes than expected
+    case 0:
+        return 16.0f;
+    case 1:
+        return 12.0f;
+    case 2:
+        return 7.0f;
+    default:
+        return 7.0f; // clamp to last slot if more boxes than expected
     }
 }
 
 void StateMachine::resetLiftSequence()
 {
-    liftStep_        = LiftStep::LOWER_HOOK;
+    liftStep_ = LiftStep::LOWER_HOOK;
     liftStepStartMs_ = millis();
 }
 

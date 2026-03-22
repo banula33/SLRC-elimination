@@ -23,8 +23,8 @@ static constexpr bool TESTING_MODE = true;
 //     Choose which test to run by setting ACTIVE_TEST.
 //     When done, set RUN_ROBOT_TEST back to false.
 // ─────────────────────────────────────────────────────────────
-static constexpr bool       RUN_ROBOT_TEST = true;
-static constexpr RobotTest  ACTIVE_TEST    = RobotTest::TURN_RIGHT_90DEG;
+static constexpr bool RUN_ROBOT_TEST = false;
+static constexpr RobotTest ACTIVE_TEST = RobotTest::MOVE_FORWARD_90CM;
 
 // ─────────────────────────────────────────────────────────────
 //  Hardware instances
@@ -34,13 +34,13 @@ static constexpr RobotTest  ACTIVE_TEST    = RobotTest::TURN_RIGHT_90DEG;
 MoveController robot(4, 7, 6, 5, 9, 8, 6.5, 1630, 18.0, 255, 50);
 
 // ToF XSHUT pins
-const uint8_t TOF_LEFT_XSHUT_PIN  = 26;
+const uint8_t TOF_LEFT_XSHUT_PIN = 26;
 const uint8_t TOF_RIGHT_XSHUT_PIN = 22;
 const uint8_t TOF_FRONT_XSHUT_PIN = 24;
 
 ToFArray tofArray(TOF_LEFT_XSHUT_PIN, TOF_RIGHT_XSHUT_PIN, TOF_FRONT_XSHUT_PIN);
 
-// Nemma motor driver pins 
+// Nemma motor driver pins
 const uint8_t NEMMA_MOTOR_ENABLE = 23;
 const uint8_t NEMMA_MOTOR_STEP = 10;
 const uint8_t NEMMA_MOTOR_DIR = 11;
@@ -49,7 +49,7 @@ const uint8_t NEMMA_MOTOR_DIR = 11;
 //  Core managers
 // ─────────────────────────────────────────────────────────────
 SensorManager sensorMgr(robot, tofArray);
-StateMachine  stateMachine(sensorMgr, robot);
+StateMachine stateMachine(sensorMgr, robot);
 
 // ─────────────────────────────────────────────────────────────
 //  Sensor diagnostic routine (runs only when TESTING_MODE = true)
@@ -62,10 +62,10 @@ static void runSensorTests()
     Serial.println(F("  SENSOR TEST MODE — 10 seconds"));
     Serial.println(F("========================================"));
 
-    const unsigned long TEST_DURATION_MS  = 5000UL;
+    const unsigned long TEST_DURATION_MS = 5000UL;
     const unsigned long SAMPLE_INTERVAL_MS = 500UL;
 
-    unsigned long testStart  = millis();
+    unsigned long testStart = millis();
     unsigned long lastSample = testStart - SAMPLE_INTERVAL_MS; // take first sample immediately
     int sampleNum = 0;
 
@@ -86,18 +86,33 @@ static void runSensorTests()
             // ── ToF sensors ────────────────────────────────
             Serial.print(F("  ToF Left  : "));
             int tl = tofArray.readLeftMm();
-            if (tl < 0) Serial.println(F("ERR"));
-            else { Serial.print(tl); Serial.println(F(" mm")); }
+            if (tl < 0)
+                Serial.println(F("ERR"));
+            else
+            {
+                Serial.print(tl);
+                Serial.println(F(" mm"));
+            }
 
             Serial.print(F("  ToF Front : "));
             int tf = tofArray.readFrontMm();
-            if (tf < 0) Serial.println(F("ERR"));
-            else { Serial.print(tf); Serial.println(F(" mm")); }
+            if (tf < 0)
+                Serial.println(F("ERR"));
+            else
+            {
+                Serial.print(tf);
+                Serial.println(F(" mm"));
+            }
 
             Serial.print(F("  ToF Right : "));
             int tr = tofArray.readRightMm();
-            if (tr < 0) Serial.println(F("ERR"));
-            else { Serial.print(tr); Serial.println(F(" mm")); }
+            if (tr < 0)
+                Serial.println(F("ERR"));
+            else
+            {
+                Serial.print(tr);
+                Serial.println(F(" mm"));
+            }
 
             // ── Encoders (ISR-driven — always up to date) ────
             Serial.print(F("  Enc Left  : "));
@@ -112,12 +127,18 @@ static void runSensorTests()
             RawGyroReadings g;
             if (updateRawGyro(g))
             {
-                Serial.print(F("  Gyro  aX="));  Serial.print(g.accelX);
-                Serial.print(F("  aY="));        Serial.print(g.accelY);
-                Serial.print(F("  aZ="));        Serial.print(g.accelZ);
-                Serial.print(F("  gX="));        Serial.print(g.gyroX);
-                Serial.print(F("  gY="));        Serial.print(g.gyroY);
-                Serial.print(F("  gZ="));        Serial.print(g.gyroZ);
+                Serial.print(F("  Gyro  aX="));
+                Serial.print(g.accelX);
+                Serial.print(F("  aY="));
+                Serial.print(g.accelY);
+                Serial.print(F("  aZ="));
+                Serial.print(g.accelZ);
+                Serial.print(F("  gX="));
+                Serial.print(g.gyroX);
+                Serial.print(F("  gY="));
+                Serial.print(g.gyroY);
+                Serial.print(F("  gZ="));
+                Serial.print(g.gyroZ);
                 Serial.print(F("  temp="));
                 Serial.print(rawGyroTemperatureC(g.temperature), 1);
                 Serial.println(F(" C"));
@@ -171,7 +192,9 @@ void setup()
     if (RUN_ROBOT_TEST)
     {
         runRobotTest(ACTIVE_TEST, robot);
-        while (true) { /* halt — re-flash to resume normal operation */ }
+        while (true)
+        { /* halt — re-flash to resume normal operation */
+        }
     }
 
     stateMachine.begin();

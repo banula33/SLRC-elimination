@@ -11,12 +11,12 @@ class MoveController;
 // ─────────────────────────────────────────────────────────────
 enum class RobotPhase : uint8_t
 {
-    IDLE,            // Power-on default / all work complete
-    BOX_FINDING,     // Phase 1 — locate boxes using encoders + ToF
-    BOX_LIFTING,     // Phase 2 — pick & stack boxes (no sensors)
-    PATH_FINDING,    // Phase 3 — navigate to next section
-    LINE_FOLLOWING,  // Phase 4 — IR line-follow to insertion zone
-    BOX_INSERTION    // Phase 5 — insert boxes into hole
+    IDLE,           // Power-on default / all work complete
+    BOX_FINDING,    // Phase 1 — locate boxes using encoders + ToF
+    BOX_LIFTING,    // Phase 2 — pick & stack boxes (no sensors)
+    PATH_FINDING,   // Phase 3 — navigate to next section
+    LINE_FOLLOWING, // Phase 4 — IR line-follow to insertion zone
+    BOX_INSERTION   // Phase 5 — insert boxes into hole
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -29,8 +29,8 @@ public:
     StateMachine(SensorManager &sensors,
                  MoveController &robot);
 
-    void begin();          // Set initial phase (BOX_FINDING)
-    void update();         // Dispatch to current phase handler
+    void begin();  // Set initial phase (BOX_FINDING)
+    void update(); // Dispatch to current phase handler
 
     RobotPhase currentPhase() const { return phase_; }
 
@@ -53,24 +53,24 @@ private:
     // ── Box-finding sub-state machine ──────────────────────
     enum class ScanStep : uint8_t
     {
-        SCANNING,       // Driving forward, watching for a ToF drop
-        CONFIRMING,     // Drop seen — verifying it persists over 5 cm
-        POSITIONING,    // Confirmed — advancing the final 1 cm
+        SCANNING,    // Driving forward, watching for a ToF drop
+        CONFIRMING,  // Drop seen — verifying it persists over 5 cm
+        POSITIONING, // Confirmed — advancing the final 1 cm
     };
 
     void resetScanSequence();
 
-    ScanStep scanStep_       = ScanStep::SCANNING;
-    int      scanBaseTof_    = -1;  // Stable ToF reading before drop (mm)
-    float    scanDropEncCm_  = 0.0f; // Encoder position when drop first seen (cm)
-    float    scanEncStart_   = 0.0f; // Encoder position at phase entry (cm)
+    ScanStep scanStep_ = ScanStep::SCANNING;
+    int scanBaseTof_ = -1;              // Stable ToF reading before drop (mm)
+    float scanDropEncCm_ = 0.0f;        // Encoder position when drop first seen (cm)
+    float scanEncStart_ = 0.0f;         // Encoder position at phase entry (cm)
     unsigned long scanLastPrintMs_ = 0; // Debug print throttle
 
     // Detection thresholds (tune as needed)
-    static constexpr int   SCAN_DROP_MM       = 70;   // 7 cm drop triggers detection
-    static constexpr float SCAN_CONFIRM_CM    = 8.0f; // hold drop for 8 cm to confirm
-    static constexpr float SCAN_EXTRA_CM      = 1.0f; // advance 1 cm after confirmation
-    static constexpr int   SCAN_FORWARD_PWM   = 50;
+    static constexpr int SCAN_DROP_MM = 70;        // 7 cm drop triggers detection
+    static constexpr float SCAN_CONFIRM_CM = 8.0f; // hold drop for 8 cm to confirm
+    static constexpr float SCAN_EXTRA_CM = 1.0f;   // advance 1 cm after confirmation
+    static constexpr int SCAN_FORWARD_PWM = 50;
 
     // ── Box-lifting sub-state machine ──────────────────────
     enum class LiftStep : uint8_t
@@ -87,14 +87,14 @@ private:
 
     void resetLiftSequence();
 
-    LiftStep liftStep_       = LiftStep::LOWER_HOOK;
-    uint8_t  boxesLoaded_    = 0;
+    LiftStep liftStep_ = LiftStep::LOWER_HOOK;
+    uint8_t boxesLoaded_ = 0;
     unsigned long liftStepStartMs_ = 0;
 
     // ── Core references ────────────────────────────────────
-    SensorManager  &sensors_;
+    SensorManager &sensors_;
     MoveController &robot_;
 
     RobotPhase phase_ = RobotPhase::IDLE;
-    bool       phaseJustEntered_ = true;  // true on first update() after transition
+    bool phaseJustEntered_ = true; // true on first update() after transition
 };
